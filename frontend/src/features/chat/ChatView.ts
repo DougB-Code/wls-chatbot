@@ -10,12 +10,13 @@ import { SignalWatcher } from '@lit-labs/preact-signals';
 
 import { activeConversation, isStreaming } from '../../store/signals';
 import { availableModels, effectiveModelId } from '../../policy/chatSelectors';
-import { isConnected, providerConfig } from '../../policy/providerSelectors';
+import { connectedProviderOptions, isConnected, providerConfig } from '../../policy/providerSelectors';
 
 import './MessageBubble';
 import './Composer';
 import './EmptyState';
 import './ModelSelector';
+import './ProviderSelector';
 
 
 /**
@@ -98,71 +99,8 @@ export class ChatView extends SignalWatcher(LitElement) {
             animation: pulse 1.5s ease-in-out infinite;
         }
 
-        .provider-badge {
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-        }
-
-        .provider-badge.openai {
-            background: hsla(160, 70%, 45%, 0.15);
-            color: hsl(160, 70%, 45%);
-        }
-
-        .provider-badge.groq {
-            background: hsla(25, 95%, 55%, 0.15);
-            color: hsl(25, 95%, 55%);
-        }
-
-        .provider-badge.gemini {
-            background: hsla(220, 85%, 60%, 0.15);
-            color: hsl(220, 85%, 60%);
-        }
-
-        .model-selector {
+        wls-model-selector {
             margin-left: 8px;
-            padding: 4px 8px;
-            border-radius: 6px;
-            border: 1px solid var(--color-border-subtle, hsla(0, 0%, 100%, 0.1));
-            background: var(--color-bg-elevated, hsl(220, 22%, 11%));
-            color: var(--color-text-primary, hsl(0, 0%, 100%));
-            font-size: 13px;
-            font-family: inherit;
-            cursor: pointer;
-            transition: all 120ms ease-out;
-        }
-
-        .model-selector option {
-            background: hsl(220, 20%, 14%);
-            color: hsl(0, 0%, 100%);
-            padding: 8px 12px;
-        }
-
-        .model-selector option:hover {
-            background: hsl(220, 20%, 18%);
-        }
-
-        .model-selector option:checked {
-            background: hsl(25, 95%, 55%);
-            color: hsl(0, 0%, 100%);
-        }
-
-        .model-selector:hover:not(:disabled) {
-            border-color: var(--color-border-default, hsla(0, 0%, 100%, 0.15));
-            background: var(--color-bg-surface, hsl(220, 20%, 14%));
-        }
-
-        .model-selector:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .model-selector:focus {
-            outline: 2px solid var(--color-user-border, hsla(215, 65%, 62%, 0.5));
-            outline-offset: 1px;
         }
 
         .message-list {
@@ -328,6 +266,8 @@ export class ChatView extends SignalWatcher(LitElement) {
         const statusDotClass = streaming ? 'streaming' : (connected ? '' : 'offline');
         const models = availableModels.value;
         const selectedModel = effectiveModelId.value;
+        const providerOptions = connectedProviderOptions.value;
+        const isProviderSwitchDisabled = streaming || providerOptions.length < 2;
 
         return html`
             <header class="header">
@@ -335,7 +275,12 @@ export class ChatView extends SignalWatcher(LitElement) {
                     <h1 class="title">${conversation?.title ?? 'New Chat'}</h1>
                     <p class="subtitle">
                         ${provider ? html`
-                            <span class="provider-badge ${provider.name}">${provider.displayName}</span>
+                            <wls-provider-selector
+                                .providers=${providerOptions}
+                                .selected=${provider.name}
+                                ?disabled=${isProviderSwitchDisabled}
+                                @provider-select=${this._handleProviderSelect}
+                            ></wls-provider-selector>
                             <wls-model-selector
                                 .models=${models.map(m => ({ id: m.id, name: m.name }))}
                                 .selected=${selectedModel}
@@ -414,6 +359,19 @@ export class ChatView extends SignalWatcher(LitElement) {
 
         this.dispatchEvent(new CustomEvent('chat-model-select', {
             detail: { model: newModel },
+            bubbles: true,
+            composed: true,
+        }));
+    }
+
+    /**
+     * emit the selected provider change to the parent shell.
+     */
+    private _handleProviderSelect(e: CustomEvent<{ provider: string }>) {
+        const newProvider = e.detail.provider;
+
+        this.dispatchEvent(new CustomEvent('chat-provider-select', {
+            detail: { provider: newProvider },
             bubbles: true,
             composed: true,
         }));

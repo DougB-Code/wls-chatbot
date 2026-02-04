@@ -107,7 +107,7 @@ func runUI(log zerolog.Logger, cfg config.AppConfig, db *sql.DB) error {
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
+		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 255},
 		OnStartup:        bridgeService.Startup,
 		OnShutdown:       bridgeService.Shutdown,
 		Bind: []interface{}{

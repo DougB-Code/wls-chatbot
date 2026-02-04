@@ -2,9 +2,6 @@
  * Global styles for WLS ChatBot.
  */
 
-/* Import web fonts first */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
 html,
 body {
     margin: 0;
@@ -12,7 +9,7 @@ body {
     height: 100%;
     min-height: 100%;
     overflow: hidden;
-    background: var(--color-bg-base, hsl(220, 25%, 8%));
+    background: var(--color-bg-base, #1b2636);
     color: var(--color-text-primary, hsla(0, 0%, 100%, 0.92));
     font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
     font-size: var(--text-base, 0.9375rem);
@@ -29,4 +26,19 @@ html {
     height: 100%;
     min-height: 0;
     overflow: hidden;
+}
+
+.wls-startup {
+    height: 100%;
+    display: grid;
+    place-items: center;
+    color: var(--color-text-secondary, hsla(0, 0%, 100%, 0.68));
+    letter-spacing: 0.02em;
+}
+
+body[data-app-ready='false'] *,
+body[data-app-ready='false'] *::before,
+body[data-app-ready='false'] *::after {
+    animation: none !important;
+    transition: none !important;
 }

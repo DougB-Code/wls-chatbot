@@ -1,5 +1,6 @@
 /**
  * orchestrate provider actions and update provider state.
+ * frontend/src/policy/providerPolicy.ts
  */
 
 import * as providerTransport from '../transport/providerTransport';
@@ -69,6 +70,26 @@ export async function configureProvider(name: string, apiKey: string): Promise<v
         await refreshProviders();
     } catch (err) {
         setProviderError((err as Error).message || `Failed to update ${name}`);
+        throw err;
+    } finally {
+        setProviderBusy(name, false);
+    }
+}
+
+/**
+ * switch the active provider and refresh provider state.
+ */
+export async function setActiveProvider(name: string): Promise<void> {
+    setProviderBusy(name, true);
+    setProviderError(null);
+    try {
+        const changed = await providerTransport.setActiveProvider(name);
+        if (!changed) {
+            throw new Error(`Failed to set active provider: ${name}`);
+        }
+        await refreshProviders();
+    } catch (err) {
+        setProviderError((err as Error).message || `Failed to set active provider: ${name}`);
         throw err;
     } finally {
         setProviderBusy(name, false);

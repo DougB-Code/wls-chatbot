@@ -117,8 +117,11 @@ export namespace chat {
 	    model?: string;
 	    tokensIn?: number;
 	    tokensOut?: number;
+	    tokensTotal?: number;
 	    latencyMs?: number;
 	    finishReason?: string;
+	    statusCode?: number;
+	    errorMessage?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new MessageMetadata(source);
@@ -130,8 +133,11 @@ export namespace chat {
 	        this.model = source["model"];
 	        this.tokensIn = source["tokensIn"];
 	        this.tokensOut = source["tokensOut"];
+	        this.tokensTotal = source["tokensTotal"];
 	        this.latencyMs = source["latencyMs"];
 	        this.finishReason = source["finishReason"];
+	        this.statusCode = source["statusCode"];
+	        this.errorMessage = source["errorMessage"];
 	    }
 	}
 	export class Message {

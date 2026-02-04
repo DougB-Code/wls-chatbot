@@ -1,20 +1,22 @@
 /**
- * wire UI events to policy actions and initialize app policies.
+ * appController.ts wires UI events to policy actions and initializes app policies.
+ * frontend/src/policy/appController.ts
  */
 
 import { activeConversation, approveAction, rejectAction } from '../store/signals';
 import { setPreferredModelId } from '../store/chatPreferences';
-import { initChatPolicy, sendMessage, setConversationModel, stopStream } from './chatPolicy';
-import { initProviderEvents, refreshProviders, connectProvider, configureProvider, disconnectProvider, refreshProviderResources } from './providerPolicy';
+import { effectiveModelId } from './chatSelectors';
+import { createNewConversation, deleteConversation, initChatPolicy, purgeConversation, restoreConversation, selectConversation, sendMessage, setConversationModel, stopStream } from './chatPolicy';
+import { initProviderEvents, refreshProviders, connectProvider, configureProvider, disconnectProvider, refreshProviderResources, setActiveProvider } from './providerPolicy';
 import { initToastEvents } from './toastPolicy';
 import { notifyError } from './notificationPolicy';
 
 /**
  * initialize app policies and wire UI event handlers.
  */
-export function initAppController(root: HTMLElement): void {
-    void bootstrapPolicies();
+export async function initAppController(root: HTMLElement): Promise<void> {
     attachUiHandlers(root);
+    await bootstrapPolicies();
 }
 
 /**
@@ -23,8 +25,13 @@ export function initAppController(root: HTMLElement): void {
 async function bootstrapPolicies(): Promise<void> {
     initToastEvents();
     initProviderEvents();
-    await refreshProviders();
-    await initChatPolicy();
+    const results = await Promise.allSettled([refreshProviders(), initChatPolicy()]);
+
+    for (const result of results) {
+        if (result.status === 'rejected') {
+            notifyError((result.reason as Error)?.message || 'Failed to initialize the app', 'Startup failed');
+        }
+    }
 }
 
 /**
@@ -48,6 +55,44 @@ function attachUiHandlers(root: HTMLElement): void {
         });
     });
 
+    root.addEventListener('chat-create', () => {
+        void createNewConversation().catch((err) => {
+            notifyError((err as Error).message || 'Failed to create conversation', 'Create failed');
+        });
+    });
+
+    root.addEventListener('chat-select', (event: Event) => {
+        const detail = (event as CustomEvent<{ conversationId: string }>).detail;
+        if (!detail?.conversationId) return;
+        void selectConversation(detail.conversationId).catch((err) => {
+            notifyError((err as Error).message || 'Failed to load conversation', 'Load failed');
+        });
+    });
+
+    root.addEventListener('chat-delete', (event: Event) => {
+        const detail = (event as CustomEvent<{ conversationId: string }>).detail;
+        if (!detail?.conversationId) return;
+        void deleteConversation(detail.conversationId).catch((err) => {
+            notifyError((err as Error).message || 'Failed to delete conversation', 'Delete failed');
+        });
+    });
+
+    root.addEventListener('chat-restore', (event: Event) => {
+        const detail = (event as CustomEvent<{ conversationId: string }>).detail;
+        if (!detail?.conversationId) return;
+        void restoreConversation(detail.conversationId).catch((err) => {
+            notifyError((err as Error).message || 'Failed to restore conversation', 'Restore failed');
+        });
+    });
+
+    root.addEventListener('chat-purge', (event: Event) => {
+        const detail = (event as CustomEvent<{ conversationId: string }>).detail;
+        if (!detail?.conversationId) return;
+        void purgeConversation(detail.conversationId).catch((err) => {
+            notifyError((err as Error).message || 'Failed to permanently delete conversation', 'Delete failed');
+        });
+    });
+
     root.addEventListener('chat-model-select', (event: Event) => {
         const detail = (event as CustomEvent<{ model: string }>).detail;
         if (!detail?.model) return;
@@ -56,6 +101,28 @@ function attachUiHandlers(root: HTMLElement): void {
         if (!conversation) return;
         void setConversationModel(conversation.id, detail.model).catch((err) => {
             notifyError((err as Error).message || 'Failed to update model', 'Model update failed');
+        });
+    });
+
+    root.addEventListener('chat-provider-select', (event: Event) => {
+        const detail = (event as CustomEvent<{ provider: string }>).detail;
+        if (!detail?.provider) return;
+
+        void setActiveProvider(detail.provider).then(async () => {
+            const selectedModel = effectiveModelId.value;
+            if (!selectedModel) {
+                return;
+            }
+
+            setPreferredModelId(selectedModel);
+            const conversation = activeConversation.value;
+            if (!conversation || conversation.settings?.model === selectedModel) {
+                return;
+            }
+
+            await setConversationModel(conversation.id, selectedModel);
+        }).catch((err) => {
+            notifyError((err as Error).message || `Failed to set active provider: ${detail.provider}`, 'Provider update failed');
         });
     });
 

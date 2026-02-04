@@ -9,6 +9,8 @@ export function ConnectProvider(arg1:string,arg2:string):Promise<provider.Info>;
 
 export function CreateConversation(arg1:string,arg2:string):Promise<chat.Conversation>;
 
+export function DeleteConversation(arg1:string):Promise<boolean>;
+
 export function DisconnectProvider(arg1:string):Promise<void>;
 
 export function GetActiveConversation():Promise<chat.Conversation>;
@@ -21,7 +23,13 @@ export function GetProviders():Promise<Array<provider.Info>>;
 
 export function ListConversations():Promise<Array<chat.ConversationSummary>>;
 
+export function ListDeletedConversations():Promise<Array<chat.ConversationSummary>>;
+
+export function PurgeConversation(arg1:string):Promise<boolean>;
+
 export function RefreshProviderResources(arg1:string):Promise<void>;
+
+export function RestoreConversation(arg1:string):Promise<boolean>;
 
 export function SendMessage(arg1:string,arg2:string):Promise<chat.Message>;
 

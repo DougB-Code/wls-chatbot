@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite" // @TODO is the blank import necessary?
 )
 
 // OpenSQLite opens the SQLite database at the provided path.

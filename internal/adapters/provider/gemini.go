@@ -1,4 +1,4 @@
-// implement the Gemini provider integration.
+// Implement the provider interface for Gemini.
 // internal/adapters/provider/gemini.go
 package provider
 
@@ -28,7 +28,6 @@ var _ Provider = (*Gemini)(nil)
 
 // NewGemini creates a new Gemini provider.
 func NewGemini(config Config) *Gemini {
-
 	baseURL := config.BaseURL
 	if baseURL == "" {
 		baseURL = "https://generativelanguage.googleapis.com/v1beta" // @TODO this can't be hard coded
@@ -46,25 +45,21 @@ func NewGemini(config Config) *Gemini {
 
 // Name returns the provider identifier.
 func (g *Gemini) Name() string {
-
 	return g.name
 }
 
 // DisplayName returns the human-readable provider name.
 func (g *Gemini) DisplayName() string {
-
 	return g.displayName
 }
 
 // Models returns the available models.
 func (g *Gemini) Models() []Model {
-
 	return g.models
 }
 
 // Configure updates the provider configuration.
 func (g *Gemini) Configure(config Config) error {
-
 	g.apiKey = config.APIKey
 	if config.BaseURL != "" {
 		g.baseURL = config.BaseURL
@@ -77,7 +72,6 @@ func (g *Gemini) Configure(config Config) error {
 
 // SetHTTPClient overrides the HTTP client used by the provider.
 func (g *Gemini) SetHTTPClient(client HTTPClient) {
-
 	if client != nil {
 		g.client = client
 	}
@@ -85,7 +79,6 @@ func (g *Gemini) SetHTTPClient(client HTTPClient) {
 
 // httpClient returns the configured HTTP client or a default client.
 func (g *Gemini) httpClient() HTTPClient {
-
 	if g.client == nil {
 		g.client = defaultHTTPClient()
 	}
@@ -94,7 +87,6 @@ func (g *Gemini) httpClient() HTTPClient {
 
 // TestConnection verifies the Gemini API is reachable.
 func (g *Gemini) TestConnection(ctx context.Context) error {
-
 	url := fmt.Sprintf("%s/models?key=%s", g.baseURL, g.apiKey)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -117,7 +109,6 @@ func (g *Gemini) TestConnection(ctx context.Context) error {
 
 // ListResources fetches the available models from the Gemini API.
 func (g *Gemini) ListResources(ctx context.Context) ([]Model, error) {
-
 	url := fmt.Sprintf("%s/models?key=%s", g.baseURL, g.apiKey)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -261,7 +252,6 @@ func (g *Gemini) Chat(ctx context.Context, messages []ProviderMessage, opts Chat
 
 // streamResponse parses Gemini SSE responses into chunks.
 func (g *Gemini) streamResponse(body io.Reader, chunks chan<- Chunk) {
-
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for scanner.Scan() {
@@ -322,7 +312,6 @@ func (g *Gemini) streamResponse(body io.Reader, chunks chan<- Chunk) {
 
 // parseResponse parses a non-streaming Gemini response into a chunk.
 func (g *Gemini) parseResponse(body io.Reader, chunks chan<- Chunk) {
-
 	var resp struct {
 		Candidates []struct {
 			Content struct {

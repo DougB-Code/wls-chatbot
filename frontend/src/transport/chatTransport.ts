@@ -1,5 +1,6 @@
 /**
- * perform chat-related backend calls.
+ * chatTransport.ts performs chat-related backend calls.
+ * frontend/src/transport/chatTransport.ts
  */
 
 import type { Conversation, ConversationSummary, Message } from '../types';
@@ -8,6 +9,10 @@ import {
     GetConversation,
     GetActiveConversation,
     ListConversations,
+    ListDeletedConversations,
+    DeleteConversation,
+    RestoreConversation,
+    PurgeConversation,
     SetActiveConversation,
     UpdateConversationModel,
     SendMessage,
@@ -40,6 +45,34 @@ export async function getActiveConversation(): Promise<Conversation | null> {
  */
 export async function listConversations(): Promise<ConversationSummary[]> {
     return ListConversations();
+}
+
+/**
+ * fetch archived conversation summaries from the backend.
+ */
+export async function listDeletedConversations(): Promise<ConversationSummary[]> {
+    return ListDeletedConversations();
+}
+
+/**
+ * move a conversation to the recycle bin in the backend.
+ */
+export async function deleteConversation(id: string): Promise<boolean> {
+    return DeleteConversation(id);
+}
+
+/**
+ * restore a recycled conversation in the backend.
+ */
+export async function restoreConversation(id: string): Promise<boolean> {
+    return RestoreConversation(id);
+}
+
+/**
+ * permanently delete a recycled conversation in the backend.
+ */
+export async function purgeConversation(id: string): Promise<boolean> {
+    return PurgeConversation(id);
 }
 
 /**

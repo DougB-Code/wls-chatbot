@@ -1,5 +1,6 @@
 /**
  * derive provider-related view models from provider state.
+ * frontend/src/policy/providerSelectors.ts
  */
 
 import { computed } from '@preact/signals-core';
@@ -7,11 +8,28 @@ import type { ProviderInfo } from '../types/wails';
 import { providers } from '../store/providerSignals';
 import { pickDefaultModel, resolveProviderModels } from './modelSelection';
 
+/**
+ * describe minimal provider data for provider switcher UI.
+ */
+export interface ProviderOption {
+    name: string;
+    displayName: string;
+}
+
 export const activeProvider = computed(() => providers.value.find((p) => p.isActive) ?? null);
 
 export const isConnected = computed(() => activeProvider.value?.isConnected ?? false);
 
 export const providerConfig = computed(() => mapProviderToConfig(activeProvider.value));
+
+export const connectedProviderOptions = computed<ProviderOption[]>(() =>
+    providers.value
+        .filter((provider) => provider.isConnected)
+        .map((provider) => ({
+            name: provider.name,
+            displayName: provider.displayName,
+        }))
+);
 
 /**
  * map backend provider info into UI-facing config.

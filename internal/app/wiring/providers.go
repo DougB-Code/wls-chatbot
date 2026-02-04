@@ -13,7 +13,6 @@ import (
 
 // LoadProvidersFromStore loads providers from configuration storage.
 func LoadProvidersFromStore(store config.Store, secrets ports.SecretStore) ([]ports.Provider, error) {
-
 	cfg, err := config.LoadConfig(store)
 	if err != nil {
 		return nil, err
@@ -23,7 +22,6 @@ func LoadProvidersFromStore(store config.Store, secrets ports.SecretStore) ([]po
 
 // ProvidersFromConfig constructs providers from configuration.
 func ProvidersFromConfig(cfg config.AppConfig, secrets ports.SecretStore) ([]ports.Provider, error) {
-
 	providers := make([]ports.Provider, 0, len(cfg.Providers))
 	for _, p := range cfg.Providers {
 		apiKey := ""
@@ -55,7 +53,6 @@ func ProvidersFromConfig(cfg config.AppConfig, secrets ports.SecretStore) ([]por
 
 // BuildProviderService wires provider adapters into the provider use case.
 func BuildProviderService(cfg config.AppConfig, cache ports.ProviderCache, secrets ports.SecretStore, logger ports.Logger) (*providerusecase.Service, ports.ProviderRegistry, error) {
-
 	registry := provideradapter.NewRegistry()
 	providerConfigs, providerErr := ProvidersFromConfig(cfg, secrets)
 	if providerErr == nil {

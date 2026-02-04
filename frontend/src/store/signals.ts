@@ -87,6 +87,18 @@ export function getConversation(id: string): Conversation | undefined {
 }
 
 /**
+ * remove a conversation from the store by id.
+ */
+export function removeConversation(id: string): void {
+    const map = new Map(conversations.value);
+    map.delete(id);
+    conversations.value = map;
+    if (activeId.value === id) {
+        activeId.value = null;
+    }
+}
+
+/**
  * set the title for an existing conversation.
  */
 export function setConversationTitle(conversationId: string, title: string): void {

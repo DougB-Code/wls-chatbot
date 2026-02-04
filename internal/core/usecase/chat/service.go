@@ -62,10 +62,22 @@ func (s *Service) GetConversation(id string) *Conversation {
 // ListConversations returns summaries of all conversations, sorted by updatedAt.
 func (s *Service) ListConversations() []ConversationSummary {
 
+	return s.listConversationsByArchivedStatus(false)
+}
+
+// ListDeletedConversations returns summaries for archived conversations.
+func (s *Service) ListDeletedConversations() []ConversationSummary {
+
+	return s.listConversationsByArchivedStatus(true)
+}
+
+// listConversationsByArchivedStatus returns summaries filtered by archive status.
+func (s *Service) listConversationsByArchivedStatus(archived bool) []ConversationSummary {
+
 	convs, _ := s.repo.List()
 	summaries := make([]ConversationSummary, 0, len(convs))
 	for _, conv := range convs {
-		if !conv.CheckIsArchived() {
+		if conv.CheckIsArchived() == archived {
 			summaries = append(summaries, conv.GetSummary())
 		}
 	}
@@ -86,7 +98,7 @@ func (s *Service) ListConversations() []ConversationSummary {
 func (s *Service) AddMessage(conversationID string, role Role, content string) *Message {
 
 	conv, _ := s.repo.Get(conversationID)
-	if conv == nil {
+	if conv == nil || conv.CheckIsArchived() {
 		return nil
 	}
 
@@ -117,7 +129,7 @@ func (s *Service) SetConversationTitle(conversationID, title string) bool {
 func (s *Service) CreateStreamingMessage(conversationID string, role Role) *Message {
 
 	conv, _ := s.repo.Get(conversationID)
-	if conv == nil {
+	if conv == nil || conv.CheckIsArchived() {
 		return nil
 	}
 
@@ -186,8 +198,48 @@ func (s *Service) FinalizeMessage(conversationID, messageID string, metadata *Me
 	return updated
 }
 
-// DeleteConversation removes a conversation.
+// DeleteConversation moves a conversation into the recycle bin.
 func (s *Service) DeleteConversation(id string) bool {
+
+	conv, _ := s.repo.Get(id)
+	if conv == nil || conv.CheckIsArchived() {
+		return false
+	}
+
+	conv.Lock()
+	conv.IsArchived = true
+	conv.UpdatedAt = time.Now().UnixMilli()
+	conv.Unlock()
+
+	if s.ActiveConversationID() == id {
+		s.SetActiveConversation("")
+	}
+
+	return s.repo.Update(conv) == nil
+}
+
+// RestoreConversation restores a conversation from the recycle bin.
+func (s *Service) RestoreConversation(id string) bool {
+
+	conv, _ := s.repo.Get(id)
+	if conv == nil || !conv.CheckIsArchived() {
+		return false
+	}
+
+	conv.Lock()
+	conv.IsArchived = false
+	conv.UpdatedAt = time.Now().UnixMilli()
+	conv.Unlock()
+
+	return s.repo.Update(conv) == nil
+}
+
+// PurgeConversation permanently deletes a conversation.
+func (s *Service) PurgeConversation(id string) bool {
+
+	if s.ActiveConversationID() == id {
+		s.SetActiveConversation("")
+	}
 
 	err := s.repo.Delete(id)
 	return err == nil
@@ -200,7 +252,7 @@ func (s *Service) UpdateConversationModel(id, model string) bool {
 		return false
 	}
 	conv, _ := s.repo.Get(id)
-	if conv != nil {
+	if conv != nil && !conv.CheckIsArchived() {
 		conv.Lock()
 		defer conv.Unlock()
 		conv.Settings.Model = model

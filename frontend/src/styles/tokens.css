@@ -35,7 +35,7 @@
    --color-gemini: hsl(220, 85%, 60%);
 
    /* Neutral Palette */
-   --color-bg-base: hsl(220, 25%, 8%);
+   --color-bg-base: #1b2636;
    --color-bg-elevated: hsl(220, 22%, 11%);
    --color-bg-surface: hsl(220, 20%, 14%);
    --color-bg-overlay: hsla(220, 25%, 8%, 0.85);

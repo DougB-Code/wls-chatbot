@@ -1,5 +1,6 @@
 /**
- * render the left navigation rail and emit section events.
+ * NavRail.ts renders the left navigation rail and emits normalized nav events.
+ * frontend/src/shell/NavRail.ts
  */
 
 import { LitElement, html, css } from 'lit';
@@ -11,6 +12,10 @@ import { SectionId } from '../types/shell';
  */
 @customElement('wls-nav-rail')
 export class NavRail extends LitElement {
+    private static readonly _doubleClickDelayMs = 220;
+
+    private _clickTimeoutId: number | null = null;
+
     static styles = css`
         :host {
             display: block;
@@ -133,21 +138,57 @@ export class NavRail extends LitElement {
     logoUrl = '';
 
     /**
-     * emit a nav-click event for the selected section.
+     * emit a single-click nav event for the selected section.
      */
-    private _handleRailClick(section: SectionId) {
+    private _emitNavClick(section: SectionId) {
         this.dispatchEvent(new CustomEvent('nav-click', { detail: { section } }));
     }
 
     /**
-     * emit a nav-dblclick event for the selected section.
+     * emit a double-click nav event for the selected section.
      */
-    private _handleRailDoubleClick(section: SectionId) {
+    private _emitNavDoubleClick(section: SectionId) {
         this.dispatchEvent(new CustomEvent('nav-dblclick', { detail: { section } }));
     }
 
     /**
-     * render the rail UI and active section affordances.
+     * clear any pending single-click dispatch timer.
+     */
+    private _clearClickTimeout() {
+        if (this._clickTimeoutId === null) {
+            return;
+        }
+        window.clearTimeout(this._clickTimeoutId);
+        this._clickTimeoutId = null;
+    }
+
+    /**
+     * normalize click interactions so double-clicks do not trigger single-click logic.
+     */
+    private _handleRailClick(event: MouseEvent, section: SectionId) {
+        if (event.detail >= 2) {
+            this._clearClickTimeout();
+            this._emitNavDoubleClick(section);
+            return;
+        }
+
+        this._clearClickTimeout();
+        this._clickTimeoutId = window.setTimeout(() => {
+            this._clickTimeoutId = null;
+            this._emitNavClick(section);
+        }, NavRail._doubleClickDelayMs);
+    }
+
+    /**
+     * clear timers before unmounting.
+     */
+    disconnectedCallback() {
+        this._clearClickTimeout();
+        super.disconnectedCallback();
+    }
+
+    /**
+     * render the rail UI and section controls.
      */
     render() {
         return html`
@@ -159,8 +200,7 @@ export class NavRail extends LitElement {
                 <nav class="rail__nav">
                     <button
                         class="rail__button ${this.activeSection === 'chat' ? 'rail__button--active' : ''}"
-                        @click=${() => this._handleRailClick('chat')}
-                        @dblclick=${() => this._handleRailDoubleClick('chat')}
+                        @click=${(event: MouseEvent) => this._handleRailClick(event, 'chat')}
                         title="Chat"
                     >
                         <span class="rail__icon rail__icon--stroke">
@@ -184,8 +224,7 @@ export class NavRail extends LitElement {
 
                     <button
                         class="rail__button ${this.activeSection === 'settings' ? 'rail__button--active' : ''}"
-                        @click=${() => this._handleRailClick('settings')}
-                        @dblclick=${() => this._handleRailDoubleClick('settings')}
+                        @click=${(event: MouseEvent) => this._handleRailClick(event, 'settings')}
                         title="Workspace Settings"
                     >
                         <span class="rail__icon rail__icon--stroke">

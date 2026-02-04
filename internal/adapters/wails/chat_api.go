@@ -34,8 +34,32 @@ func (b *Bridge) ListConversations() []chat.ConversationSummary {
 	return b.chat.ListConversations()
 }
 
+// ListDeletedConversations returns summaries of archived conversations.
+func (b *Bridge) ListDeletedConversations() []chat.ConversationSummary {
+
+	return b.chat.ListDeletedConversations()
+}
+
 // UpdateConversationModel updates the model for a conversation.
 func (b *Bridge) UpdateConversationModel(conversationID, model string) bool {
 
 	return b.chat.UpdateConversationModel(conversationID, model)
+}
+
+// DeleteConversation moves a conversation to the recycle bin.
+func (b *Bridge) DeleteConversation(id string) bool {
+
+	return b.chat.DeleteConversation(id)
+}
+
+// RestoreConversation restores a recycled conversation.
+func (b *Bridge) RestoreConversation(id string) bool {
+
+	return b.chat.RestoreConversation(id)
+}
+
+// PurgeConversation permanently deletes a conversation.
+func (b *Bridge) PurgeConversation(id string) bool {
+
+	return b.chat.PurgeConversation(id)
 }

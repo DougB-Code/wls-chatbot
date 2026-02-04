@@ -1,4 +1,4 @@
-// implement the OpenAI-compatible provider integration.
+// Implement the provider interface for OpenAI.
 // internal/adapters/provider/openai.go
 package provider
 

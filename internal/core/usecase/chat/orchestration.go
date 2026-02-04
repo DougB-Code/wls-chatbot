@@ -70,10 +70,34 @@ func (o *Orchestrator) ListConversations() []ConversationSummary {
 	return o.service.ListConversations()
 }
 
+// ListDeletedConversations returns summaries of archived conversations.
+func (o *Orchestrator) ListDeletedConversations() []ConversationSummary {
+
+	return o.service.ListDeletedConversations()
+}
+
 // UpdateConversationModel updates the model for a conversation.
 func (o *Orchestrator) UpdateConversationModel(conversationID, model string) bool {
 
 	return o.service.UpdateConversationModel(conversationID, model)
+}
+
+// DeleteConversation archives a conversation by ID.
+func (o *Orchestrator) DeleteConversation(id string) bool {
+
+	return o.service.DeleteConversation(id)
+}
+
+// RestoreConversation restores an archived conversation by ID.
+func (o *Orchestrator) RestoreConversation(id string) bool {
+
+	return o.service.RestoreConversation(id)
+}
+
+// PurgeConversation permanently deletes a conversation by ID.
+func (o *Orchestrator) PurgeConversation(id string) bool {
+
+	return o.service.PurgeConversation(id)
 }
 
 // SendMessage sends a user message and initiates a streaming response.
@@ -129,7 +153,7 @@ func (o *Orchestrator) SendMessage(ctx context.Context, conversationID, content 
 	prov, err := o.ensureProviderConfigured(providerName)
 	if err != nil {
 		o.emitStreamError(conversationID, streamMsg.ID, err)
-		metadata := o.buildMetadata(providerName, conv.Settings.Model, "error", nil, time.Now())
+		metadata := o.buildMetadata(providerName, conv.Settings.Model, "error", nil, time.Now(), err)
 		o.service.FinalizeMessage(conversationID, streamMsg.ID, metadata)
 		return userMsg, nil
 	}
@@ -149,7 +173,7 @@ func (o *Orchestrator) SendMessage(ctx context.Context, conversationID, content 
 	if err != nil {
 		o.stream.clear(conversationID, streamMsg.ID)
 		o.emitStreamError(conversationID, streamMsg.ID, err)
-		metadata := o.buildMetadata(providerName, conv.Settings.Model, "error", nil, time.Now())
+		metadata := o.buildMetadata(providerName, conv.Settings.Model, "error", nil, time.Now(), err)
 		o.service.FinalizeMessage(conversationID, streamMsg.ID, metadata)
 		return userMsg, nil
 	}
@@ -309,12 +333,12 @@ func (o *Orchestrator) consumeStream(conversationID, messageID, providerName, fa
 	for chunk := range chunks {
 		if chunk.Error != nil {
 			if isContextCanceled(chunk.Error) {
-				metadata := o.buildMetadata(providerName, chooseModel(model, fallbackModel), "cancelled", usage, start)
+				metadata := o.buildMetadata(providerName, chooseModel(model, fallbackModel), "cancelled", usage, start, nil)
 				o.service.FinalizeMessage(conversationID, messageID, metadata)
 				o.emitStreamComplete(conversationID, messageID, metadata)
 			} else {
 				o.emitStreamError(conversationID, messageID, chunk.Error)
-				metadata := o.buildMetadata(providerName, chooseModel(model, fallbackModel), "error", usage, start)
+				metadata := o.buildMetadata(providerName, chooseModel(model, fallbackModel), "error", usage, start, chunk.Error)
 				o.service.FinalizeMessage(conversationID, messageID, metadata)
 			}
 			return
@@ -339,13 +363,20 @@ func (o *Orchestrator) consumeStream(conversationID, messageID, providerName, fa
 		finishReason = "cancelled"
 	}
 
-	metadata := o.buildMetadata(providerName, chooseModel(model, fallbackModel), finishReason, usage, start)
+	metadata := o.buildMetadata(providerName, chooseModel(model, fallbackModel), finishReason, usage, start, nil)
 	o.service.FinalizeMessage(conversationID, messageID, metadata)
 	o.emitStreamComplete(conversationID, messageID, metadata)
 }
 
 // buildMetadata builds message metadata from provider results.
-func (o *Orchestrator) buildMetadata(providerName, model, finishReason string, usage *ports.UsageStats, start time.Time) *MessageMetadata {
+func (o *Orchestrator) buildMetadata(
+	providerName,
+	model,
+	finishReason string,
+	usage *ports.UsageStats,
+	start time.Time,
+	err error,
+) *MessageMetadata {
 
 	meta := &MessageMetadata{
 		Provider:     providerName,
@@ -359,6 +390,14 @@ func (o *Orchestrator) buildMetadata(providerName, model, finishReason string, u
 	if usage != nil {
 		meta.TokensIn = usage.PromptTokens
 		meta.TokensOut = usage.CompletionTokens
+		meta.TokensTotal = usage.TotalTokens
+		if meta.TokensTotal == 0 {
+			meta.TokensTotal = usage.PromptTokens + usage.CompletionTokens
+		}
+	}
+	if err != nil {
+		meta.StatusCode = ports.StatusCodeFromErr(err)
+		meta.ErrorMessage = err.Error()
 	}
 	return meta
 }
