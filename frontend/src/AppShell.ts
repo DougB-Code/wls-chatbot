@@ -9,9 +9,7 @@ import { customElement, state } from 'lit/decorators.js';
 import { SectionId } from './types/shell';
 import './shell/MainLayout';
 import './features/chat';
-import './features/settings/SettingsView';
-import './features/chat/ChatSidePanel';
-import './features/settings/SettingsSidePanel';
+import './features/settings';
 import './components/ToastStack';
 
 import logoUrl from './assets/images/wls-chatbot-logo.png';

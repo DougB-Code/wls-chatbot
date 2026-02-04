@@ -3,8 +3,8 @@
  * frontend/src/lib/logger.ts
  */
 
-import type { LogEntry } from '../transport/logTransport';
-import { sendLog } from '../transport/logTransport';
+import type { LogEntry } from '../core/infrastructure/wails/logTransport';
+import { sendLog } from '../core/infrastructure/wails/logTransport';
 
 /**
  * accumulate a log entry with context fields and emit it.
