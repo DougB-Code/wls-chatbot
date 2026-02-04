@@ -1,5 +1,6 @@
 /**
  * bootstrap the frontend app, mount the shell, and initialize controllers.
+ * frontend/src/main.ts
  */
 
 import './styles/tokens.css';
@@ -7,7 +8,7 @@ import './styles/chat.css';
 import './style.css';
 
 import './AppShell';
-import { initAppController } from './policy/appController';
+import { initAppController } from './app/application/appController';
 
 const root = document.querySelector<HTMLElement>('#app');
 

@@ -2,7 +2,7 @@
 // internal/core/ports/events.go
 package ports
 
-import "github.com/MadeByDoug/wls-chatbot/internal/core/domain/chat"
+import "github.com/MadeByDoug/wls-chatbot/internal/features/chat/domain"
 
 // ChatEvent is the wrapper for all events sent to the frontend.
 type ChatEvent struct {
@@ -15,12 +15,12 @@ type ChatEvent struct {
 
 // StreamChunkPayload is the payload for stream chunk events.
 type StreamChunkPayload struct {
-	BlockIndex int                    `json:"blockIndex"`
-	Content    string                 `json:"content"`
-	IsDone     bool                   `json:"isDone"`
-	Metadata   *chat.MessageMetadata  `json:"metadata,omitempty"`
-	Error      string                 `json:"error,omitempty"`
-	StatusCode int                    `json:"statusCode,omitempty"`
+	BlockIndex int                   `json:"blockIndex"`
+	Content    string                `json:"content"`
+	IsDone     bool                  `json:"isDone"`
+	Metadata   *chat.MessageMetadata `json:"metadata,omitempty"`
+	Error      string                `json:"error,omitempty"`
+	StatusCode int                   `json:"statusCode,omitempty"`
 }
 
 // ConversationTitlePayload carries a conversation title update.

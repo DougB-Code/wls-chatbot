@@ -1,11 +1,12 @@
 /**
  * render transient toast notifications from toast state.
+ * frontend/src/components/ToastStack.ts
  */
 
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement } from 'lit/decorators.js';
 import { SignalWatcher } from '@lit-labs/preact-signals';
-import { dismissToast, toasts } from '../store/toastSignals';
+import { dismissToast, toasts } from '../app/state/toastSignals';
 
 /**
  * render the current toast stack from toast state.
