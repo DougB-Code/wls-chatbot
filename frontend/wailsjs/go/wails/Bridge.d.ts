@@ -42,3 +42,5 @@ export function StopStream():Promise<void>;
 export function TestProvider(arg1:string):Promise<void>;
 
 export function UpdateConversationModel(arg1:string,arg2:string):Promise<boolean>;
+
+export function UpdateConversationProvider(arg1:string,arg2:string):Promise<boolean>;

@@ -15,6 +15,7 @@ import {
     PurgeConversation,
     SetActiveConversation,
     UpdateConversationModel,
+    UpdateConversationProvider,
     SendMessage,
     StopStream,
 } from '../../wailsjs/go/wails/Bridge';
@@ -87,6 +88,13 @@ export async function setActiveConversation(id: string): Promise<void> {
  */
 export async function updateConversationModel(conversationId: string, model: string): Promise<boolean> {
     return UpdateConversationModel(conversationId, model);
+}
+
+/**
+ * update the provider setting for a conversation.
+ */
+export async function updateConversationProvider(conversationId: string, provider: string): Promise<boolean> {
+    return UpdateConversationProvider(conversationId, provider);
 }
 
 /**

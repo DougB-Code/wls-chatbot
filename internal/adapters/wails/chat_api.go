@@ -46,6 +46,12 @@ func (b *Bridge) UpdateConversationModel(conversationID, model string) bool {
 	return b.chat.UpdateConversationModel(conversationID, model)
 }
 
+// UpdateConversationProvider updates the provider for a conversation.
+func (b *Bridge) UpdateConversationProvider(conversationID, provider string) bool {
+
+	return b.chat.UpdateConversationProvider(conversationID, provider)
+}
+
 // DeleteConversation moves a conversation to the recycle bin.
 func (b *Bridge) DeleteConversation(id string) bool {
 

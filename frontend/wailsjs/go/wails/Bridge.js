@@ -81,3 +81,7 @@ export function TestProvider(arg1) {
 export function UpdateConversationModel(arg1, arg2) {
   return window['go']['wails']['Bridge']['UpdateConversationModel'](arg1, arg2);
 }
+
+export function UpdateConversationProvider(arg1, arg2) {
+  return window['go']['wails']['Bridge']['UpdateConversationProvider'](arg1, arg2);
+}

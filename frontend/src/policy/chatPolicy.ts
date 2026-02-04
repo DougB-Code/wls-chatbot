@@ -245,3 +245,27 @@ export async function setConversationModel(conversationId: string, model: string
         }, true);
     }
 }
+
+/**
+ * update the conversation provider in the backend and store.
+ */
+export async function setConversationProvider(conversationId: string, provider: string): Promise<void> {
+    const updated = await chatTransport.updateConversationProvider(conversationId, provider);
+    if (!updated) {
+        throw new Error('Failed to update provider');
+    }
+
+    const conversation = store.getConversation(conversationId);
+    if (!conversation) return;
+
+    if (conversation.settings?.provider !== provider) {
+        store.upsertConversation({
+            ...conversation,
+            settings: {
+                ...conversation.settings,
+                provider,
+            },
+            updatedAt: Date.now(),
+        }, true);
+    }
+}

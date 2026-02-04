@@ -256,6 +256,25 @@ func (s *Service) UpdateConversationModel(id, model string) bool {
 		conv.Lock()
 		defer conv.Unlock()
 		conv.Settings.Model = model
+		conv.UpdatedAt = time.Now().UnixMilli()
+		s.repo.Update(conv)
+		return true
+	}
+	return false
+}
+
+// UpdateConversationProvider updates the provider for a conversation.
+func (s *Service) UpdateConversationProvider(id, provider string) bool {
+
+	if provider == "" {
+		return false
+	}
+	conv, _ := s.repo.Get(id)
+	if conv != nil && !conv.CheckIsArchived() {
+		conv.Lock()
+		defer conv.Unlock()
+		conv.Settings.Provider = provider
+		conv.UpdatedAt = time.Now().UnixMilli()
 		s.repo.Update(conv)
 		return true
 	}

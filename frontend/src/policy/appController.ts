@@ -6,7 +6,7 @@
 import { activeConversation, approveAction, rejectAction } from '../store/signals';
 import { setPreferredModelId } from '../store/chatPreferences';
 import { effectiveModelId } from './chatSelectors';
-import { createNewConversation, deleteConversation, initChatPolicy, purgeConversation, restoreConversation, selectConversation, sendMessage, setConversationModel, stopStream } from './chatPolicy';
+import { createNewConversation, deleteConversation, initChatPolicy, purgeConversation, restoreConversation, selectConversation, sendMessage, setConversationModel, setConversationProvider, stopStream } from './chatPolicy';
 import { initProviderEvents, refreshProviders, connectProvider, configureProvider, disconnectProvider, refreshProviderResources, setActiveProvider } from './providerPolicy';
 import { initToastEvents } from './toastPolicy';
 import { notifyError } from './notificationPolicy';
@@ -116,11 +116,17 @@ function attachUiHandlers(root: HTMLElement): void {
 
             setPreferredModelId(selectedModel);
             const conversation = activeConversation.value;
-            if (!conversation || conversation.settings?.model === selectedModel) {
+            if (!conversation) {
                 return;
             }
 
-            await setConversationModel(conversation.id, selectedModel);
+            if (conversation.settings?.provider !== detail.provider) {
+                await setConversationProvider(conversation.id, detail.provider);
+            }
+
+            if (conversation.settings?.model !== selectedModel) {
+                await setConversationModel(conversation.id, selectedModel);
+            }
         }).catch((err) => {
             notifyError((err as Error).message || `Failed to set active provider: ${detail.provider}`, 'Provider update failed');
         });

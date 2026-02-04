@@ -82,6 +82,12 @@ func (o *Orchestrator) UpdateConversationModel(conversationID, model string) boo
 	return o.service.UpdateConversationModel(conversationID, model)
 }
 
+// UpdateConversationProvider updates the provider for a conversation.
+func (o *Orchestrator) UpdateConversationProvider(conversationID, provider string) bool {
+
+	return o.service.UpdateConversationProvider(conversationID, provider)
+}
+
 // DeleteConversation archives a conversation by ID.
 func (o *Orchestrator) DeleteConversation(id string) bool {
 
