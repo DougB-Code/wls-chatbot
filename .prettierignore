@@ -1,0 +1,12 @@
+node_modules
+dist
+build
+coverage
+.out
+.next
+output
+out
+
+# If you generate artifacts:
+*.min.*
+*.snap
