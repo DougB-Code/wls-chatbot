@@ -21,3 +21,21 @@ func (b *Bridge) ListNotifications() []notifications.Notification {
 	}
 	return b.notifications.ListNotifications()
 }
+
+// DeleteNotification removes a notification by id.
+func (b *Bridge) DeleteNotification(id int64) bool {
+
+	if b.notifications == nil {
+		return false
+	}
+	return b.notifications.DeleteNotification(id)
+}
+
+// ClearNotifications removes all notifications.
+func (b *Bridge) ClearNotifications() bool {
+
+	if b.notifications == nil {
+		return false
+	}
+	return b.notifications.ClearNotifications()
+}

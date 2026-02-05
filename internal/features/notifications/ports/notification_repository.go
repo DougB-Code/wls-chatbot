@@ -8,4 +8,6 @@ import "github.com/MadeByDoug/wls-chatbot/internal/features/notifications/domain
 type NotificationRepository interface {
 	Create(notification *domain.Notification) (*domain.Notification, error)
 	List() ([]*domain.Notification, error)
+	Delete(id int64) error
+	Clear() error
 }

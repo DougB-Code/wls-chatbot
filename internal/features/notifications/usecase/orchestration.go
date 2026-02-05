@@ -36,3 +36,23 @@ func (o *Orchestrator) ListNotifications() []Notification {
 
 	return o.service.List()
 }
+
+// DeleteNotification removes a notification by id.
+func (o *Orchestrator) DeleteNotification(id int64) bool {
+
+	if o == nil || o.service == nil {
+		return false
+	}
+
+	return o.service.Delete(id) == nil
+}
+
+// ClearNotifications removes all notifications.
+func (o *Orchestrator) ClearNotifications() bool {
+
+	if o == nil || o.service == nil {
+		return false
+	}
+
+	return o.service.Clear() == nil
+}

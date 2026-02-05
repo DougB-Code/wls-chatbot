@@ -3,7 +3,7 @@
  * frontend/src/features/notifications/infrastructure/notificationTransport.ts
  */
 
-import { CreateNotification, ListNotifications } from '../../../../wailsjs/go/wails/Bridge';
+import { CreateNotification, ListNotifications, DeleteNotification, ClearNotifications } from '../../../../wailsjs/go/wails/Bridge';
 import type { notifications } from '../../../../wailsjs/go/models';
 
 export type NotificationPayload = notifications.NotificationPayload;
@@ -21,4 +21,18 @@ export async function listNotifications(): Promise<Notification[]> {
  */
 export async function createNotification(payload: NotificationPayload): Promise<Notification | null> {
     return CreateNotification(payload);
+}
+
+/**
+ * delete a notification by id.
+ */
+export async function deleteNotification(id: number): Promise<boolean> {
+    return DeleteNotification(id);
+}
+
+/**
+ * clear all notifications.
+ */
+export async function clearNotifications(): Promise<boolean> {
+    return ClearNotifications();
 }

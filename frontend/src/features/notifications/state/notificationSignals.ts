@@ -16,6 +16,20 @@ export function setNotifications(list: Notification[]): void {
 }
 
 /**
+ * remove a notification by id.
+ */
+export function removeNotification(id: number): void {
+    notifications.value = notifications.value.filter((notification) => notification.id !== id);
+}
+
+/**
+ * clear all notifications.
+ */
+export function clearNotifications(): void {
+    notifications.value = [];
+}
+
+/**
  * prepend a newly created notification to state.
  */
 export function prependNotification(notification: Notification): void {

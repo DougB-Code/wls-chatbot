@@ -6,6 +6,8 @@ import {chat} from '../models';
 import {notifications} from '../models';
 import {domain} from '../models';
 
+export function ClearNotifications():Promise<boolean>;
+
 export function ConfigureProvider(arg1:string,arg2:ports.ProviderCredentials):Promise<void>;
 
 export function ConnectProvider(arg1:string,arg2:ports.ProviderCredentials):Promise<provider.Info>;
@@ -15,6 +17,8 @@ export function CreateConversation(arg1:string,arg2:string):Promise<chat.Convers
 export function CreateNotification(arg1:notifications.NotificationPayload):Promise<domain.Notification>;
 
 export function DeleteConversation(arg1:string):Promise<boolean>;
+
+export function DeleteNotification(arg1:number):Promise<boolean>;
 
 export function DisconnectProvider(arg1:string):Promise<void>;
 

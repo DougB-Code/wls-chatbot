@@ -64,3 +64,26 @@ func (s *Service) List() []Notification {
 
 	return result
 }
+
+// Delete removes a notification by id.
+func (s *Service) Delete(id int64) error {
+
+	if s == nil || s.repo == nil {
+		return fmt.Errorf("notifications: repo required")
+	}
+	if id <= 0 {
+		return fmt.Errorf("notifications: id required")
+	}
+
+	return s.repo.Delete(id)
+}
+
+// Clear removes all notifications.
+func (s *Service) Clear() error {
+
+	if s == nil || s.repo == nil {
+		return fmt.Errorf("notifications: repo required")
+	}
+
+	return s.repo.Clear()
+}

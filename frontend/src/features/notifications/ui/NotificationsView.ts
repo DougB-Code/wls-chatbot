@@ -8,7 +8,7 @@ import { customElement } from 'lit/decorators.js';
 import { SignalWatcher } from '@lit-labs/preact-signals';
 
 import { notifications } from '../state/notificationSignals';
-import { refreshNotifications } from '../application/notificationPolicy';
+import { clearAllNotifications, deleteNotification, refreshNotifications } from '../application/notificationPolicy';
 import type { Notification } from '../../../types/wails';
 
 /**
@@ -32,6 +32,31 @@ export class NotificationsView extends SignalWatcher(LitElement) {
             gap: 16px;
             overflow-y: auto;
             box-sizing: border-box;
+            background: #161A22;
+        }
+
+        .notifications__header {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 16px;
+        }
+
+        .clear-button {
+            border-radius: 999px;
+            border: 1px solid var(--color-border-subtle, hsla(0, 0%, 100%, 0.12));
+            background: transparent;
+            color: var(--color-text-secondary, hsla(0, 0%, 100%, 0.68));
+            font-size: 12px;
+            padding: 6px 12px;
+            cursor: pointer;
+            transition: all 120ms ease-out;
+        }
+
+        .clear-button:hover {
+            color: var(--color-text-primary, hsla(0, 0%, 100%, 0.92));
+            border-color: var(--color-border-default, hsla(0, 0%, 100%, 0.2));
+            background: var(--color-interactive-hover, hsla(0, 0%, 100%, 0.08));
         }
 
         .notification {
@@ -54,6 +79,43 @@ export class NotificationsView extends SignalWatcher(LitElement) {
             align-items: center;
             justify-content: space-between;
             gap: 12px;
+        }
+
+        .notification__actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .notification__delete {
+            border: 0;
+            background: transparent;
+            color: var(--color-text-muted, hsla(0, 0%, 100%, 0.45));
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+            width: 24px;
+            height: 24px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            transition: all 120ms ease-out;
+        }
+
+        .notification__delete:hover {
+            color: var(--color-text-primary, hsla(0, 0%, 100%, 0.92));
+            background: var(--color-interactive-hover, hsla(0, 0%, 100%, 0.08));
+        }
+
+        .notification__delete svg {
+            width: 14px;
+            height: 14px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
 
         .notification__title {
@@ -100,6 +162,11 @@ export class NotificationsView extends SignalWatcher(LitElement) {
         if (list.length === 0) {
             return html`
                 <div class="notifications">
+                    <div class="notifications__header">
+                        <button class="clear-button" type="button" disabled>
+                            Clear All
+                        </button>
+                    </div>
                     <div class="empty-state">No notifications yet.</div>
                 </div>
             `;
@@ -107,6 +174,11 @@ export class NotificationsView extends SignalWatcher(LitElement) {
 
         return html`
             <div class="notifications">
+                <div class="notifications__header">
+                    <button class="clear-button" type="button" @click=${this._handleClearAll}>
+                        Clear All
+                    </button>
+                </div>
                 ${list.map((notification) => this._renderNotification(notification))}
             </div>
         `;
@@ -121,11 +193,39 @@ export class NotificationsView extends SignalWatcher(LitElement) {
             <article class="notification ${notification.type === 'error' ? 'notification--error' : ''}">
                 <div class="notification__header">
                     <h2 class="notification__title">${title}</h2>
-                    <span class="notification__timestamp">${this._formatTimestamp(notification.createdAt)}</span>
+                    <div class="notification__actions">
+                        <span class="notification__timestamp">${this._formatTimestamp(notification.createdAt)}</span>
+                        <button
+                            class="notification__delete"
+                            type="button"
+                            aria-label="Delete notification"
+                            title="Delete notification"
+                            @click=${() => this._handleDelete(notification.id)}
+                        >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M18 6L6 18" />
+                                <path d="M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
                 <p class="notification__message">${notification.message}</p>
             </article>
         `;
+    }
+
+    /**
+     * delete a notification by id.
+     */
+    private _handleDelete(id: number) {
+        void deleteNotification(id).catch(() => undefined);
+    }
+
+    /**
+     * clear all notifications.
+     */
+    private _handleClearAll() {
+        void clearAllNotifications().catch(() => undefined);
     }
 
     /**

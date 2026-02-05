@@ -4,7 +4,7 @@
  */
 
 import * as notificationTransport from '../infrastructure/notificationTransport';
-import { prependNotification, setNotifications } from '../state/notificationSignals';
+import { clearNotifications, prependNotification, removeNotification, setNotifications } from '../state/notificationSignals';
 
 export type NotificationPayload = notificationTransport.NotificationPayload;
 
@@ -23,5 +23,25 @@ export async function createNotification(payload: NotificationPayload): Promise<
     const notification = await notificationTransport.createNotification(payload);
     if (notification) {
         prependNotification(notification);
+    }
+}
+
+/**
+ * delete a notification and update local state.
+ */
+export async function deleteNotification(id: number): Promise<void> {
+    const ok = await notificationTransport.deleteNotification(id);
+    if (ok) {
+        removeNotification(id);
+    }
+}
+
+/**
+ * clear all notifications and update local state.
+ */
+export async function clearAllNotifications(): Promise<void> {
+    const ok = await notificationTransport.clearNotifications();
+    if (ok) {
+        clearNotifications();
     }
 }

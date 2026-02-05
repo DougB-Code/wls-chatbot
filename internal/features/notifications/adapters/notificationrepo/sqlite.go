@@ -128,3 +128,32 @@ func (r *Repository) List() ([]*notificationdomain.Notification, error) {
 
 	return results, nil
 }
+
+// Delete removes a notification by id.
+func (r *Repository) Delete(id int64) error {
+
+	if r == nil || r.db == nil {
+		return fmt.Errorf("notification repo: db required")
+	}
+	if id <= 0 {
+		return fmt.Errorf("notification repo: id required")
+	}
+
+	if _, err := r.db.Exec("DELETE FROM notifications WHERE id = ?", id); err != nil {
+		return fmt.Errorf("notification repo: delete: %w", err)
+	}
+	return nil
+}
+
+// Clear removes all notifications.
+func (r *Repository) Clear() error {
+
+	if r == nil || r.db == nil {
+		return fmt.Errorf("notification repo: db required")
+	}
+
+	if _, err := r.db.Exec("DELETE FROM notifications"); err != nil {
+		return fmt.Errorf("notification repo: clear: %w", err)
+	}
+	return nil
+}
