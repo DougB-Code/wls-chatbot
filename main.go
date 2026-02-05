@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	"path/filepath"
@@ -11,6 +12,8 @@ import (
 	"github.com/MadeByDoug/wls-chatbot/internal/core/adapters/datastore"
 	"github.com/MadeByDoug/wls-chatbot/internal/core/adapters/logger"
 	wailsadapter "github.com/MadeByDoug/wls-chatbot/internal/core/adapters/wails"
+	"github.com/MadeByDoug/wls-chatbot/internal/features/catalog/adapters/catalogrepo"
+	catalogusecase "github.com/MadeByDoug/wls-chatbot/internal/features/catalog/usecase"
 	"github.com/MadeByDoug/wls-chatbot/internal/features/chat/adapters/chatrepo"
 	chatusecase "github.com/MadeByDoug/wls-chatbot/internal/features/chat/usecase"
 	"github.com/MadeByDoug/wls-chatbot/internal/features/notifications/adapters/notificationrepo"
@@ -136,7 +139,21 @@ func setupApp(log zerolog.Logger, cfg config.AppConfig, db *sql.DB) (*wailsadapt
 	if cacheErr != nil {
 		return nil, nil, cacheErr
 	}
-	providerService, registry, err := wiring.BuildProviderService(cfg, cache, secrets, configStore, coreLogger)
+	catalogRepository, catalogErr := catalogrepo.NewRepository(db)
+	if catalogErr != nil {
+		return nil, nil, catalogErr
+	}
+	for _, providerConfig := range cfg.Providers {
+		_, _ = catalogRepository.EnsureProvider(context.Background(), catalogrepo.ProviderRecord{
+			Name:        providerConfig.Name,
+			DisplayName: providerConfig.DisplayName,
+			AdapterType: providerConfig.Type,
+			TrustMode:   "user_managed",
+			BaseURL:     providerConfig.BaseURL,
+		})
+	}
+
+	providerService, registry, err := wiring.BuildProviderService(cfg, cache, secrets, catalogRepository, coreLogger)
 
 	chatRepo, repoErr := chatrepo.NewRepository(db)
 	if repoErr != nil {
@@ -151,9 +168,12 @@ func setupApp(log zerolog.Logger, cfg config.AppConfig, db *sql.DB) (*wailsadapt
 	notificationService := notificationusecase.NewService(notificationRepo)
 
 	emitter := &wailsadapter.Emitter{}
+	catalogService := catalogusecase.NewService(catalogRepository, providerService, cfg, coreLogger)
+	catalogOrchestrator := catalogusecase.NewOrchestrator(catalogService, emitter)
 	bridgeService := wailsadapter.New(
 		chatusecase.NewOrchestrator(chatService, registry, secrets, emitter),
 		providerusecase.NewOrchestrator(providerService, secrets, emitter),
+		catalogOrchestrator,
 		notificationusecase.NewOrchestrator(notificationService),
 		emitter,
 	)

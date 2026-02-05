@@ -45,6 +45,11 @@ type ProviderEmitter interface {
 	EmitProvidersUpdated()
 }
 
+// CatalogEmitter publishes catalog-related events to the frontend.
+type CatalogEmitter interface {
+	EmitCatalogUpdated()
+}
+
 // ToastEmitter publishes toast notifications to the frontend.
 type ToastEmitter interface {
 	EmitToast(payload ToastPayload)
@@ -54,5 +59,6 @@ type ToastEmitter interface {
 type Emitter interface {
 	ChatEmitter
 	ProviderEmitter
+	CatalogEmitter
 	ToastEmitter
 }

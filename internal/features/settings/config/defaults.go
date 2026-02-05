@@ -55,6 +55,14 @@ func DefaultConfig() AppConfig {
 				UpdateFrequency: UpdateFrequencyManual,
 				Models:          nil,
 			},
+			{
+				Type:            "openrouter",
+				Name:            "openrouter",
+				DisplayName:     "OpenRouter",
+				BaseURL:         "https://openrouter.ai/api/v1",
+				UpdateFrequency: UpdateFrequencyManual,
+				Models:          nil,
+			},
 		},
 	}
 }

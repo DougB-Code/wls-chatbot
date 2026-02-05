@@ -7,6 +7,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { SignalWatcher } from '@lit-labs/preact-signals';
 import { providers, providerBusy } from '../state/providerSignals';
+import { catalogOverview, catalogBusy } from '../state/catalogSignals';
 import type { ProviderInfo } from '../../../types/wails';
 import { settingsSharedStyles } from './settingsStyles';
 
@@ -258,6 +259,83 @@ export class ConnectionsView extends SignalWatcher(LitElement) {
             gap: 8px;
         }
 
+        .provider-endpoints {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .endpoint-card {
+            border: 1px solid var(--color-border-subtle);
+            border-radius: 10px;
+            padding: 12px;
+            background: rgba(15, 18, 26, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .endpoint-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .endpoint-title {
+            font-weight: 600;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .endpoint-meta {
+            font-size: 12px;
+            color: var(--color-text-muted);
+        }
+
+        .endpoint-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .endpoint-models {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 12px;
+        }
+
+        .endpoint-model {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            border: 1px solid var(--color-border-subtle);
+            background: rgba(10, 12, 18, 0.6);
+        }
+
+        .endpoint-model__name {
+            font-weight: 500;
+        }
+
+        .endpoint-model__tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            color: var(--color-text-muted);
+        }
+
+        .endpoint-tag {
+            padding: 2px 6px;
+            border-radius: 999px;
+            border: 1px solid var(--color-border-subtle);
+            font-size: 11px;
+        }
+
         .provider-resource {
             padding: 6px 10px;
             border-radius: 999px;
@@ -373,6 +451,28 @@ export class ConnectionsView extends SignalWatcher(LitElement) {
     }
 
     /**
+     * request an endpoint connectivity test.
+     */
+    private _handleTestEndpoint(endpointId: string) {
+        this.dispatchEvent(new CustomEvent('catalog-endpoint-test', {
+            bubbles: true,
+            composed: true,
+            detail: { endpointId },
+        }));
+    }
+
+    /**
+     * request an endpoint model refresh.
+     */
+    private _handleRefreshEndpoint(endpointId: string) {
+        this.dispatchEvent(new CustomEvent('catalog-endpoint-refresh', {
+            bubbles: true,
+            composed: true,
+            detail: { endpointId },
+        }));
+    }
+
+    /**
      * expand or collapse the provider resource list.
      */
     private _toggleProviderResources(name: string) {
@@ -386,6 +486,14 @@ export class ConnectionsView extends SignalWatcher(LitElement) {
      * render the provider connections UI.
      */
     render() {
+        const overview = catalogOverview.value;
+        const endpoints = overview?.endpoints ?? [];
+        const endpointGroups = new Map<string, typeof endpoints>();
+        for (const endpoint of endpoints) {
+            const list = endpointGroups.get(endpoint.providerName) ?? [];
+            list.push(endpoint);
+            endpointGroups.set(endpoint.providerName, list);
+        }
         return html`
             <div class="settings">
                 <header class="settings__header">
@@ -408,6 +516,7 @@ export class ConnectionsView extends SignalWatcher(LitElement) {
             const modelCount = hasResources ? resources.length : provider.models.length;
             const isBusy = !!providerBusy.value[provider.name];
             const fields = provider.credentialFields ?? [];
+            const endpointList = endpointGroups.get(provider.name) ?? [];
 
             return html`
                                 <div class="provider-item ${provider.isActive ? 'active' : ''}">
@@ -501,6 +610,59 @@ export class ConnectionsView extends SignalWatcher(LitElement) {
                                                     <span class="provider-resource">${resource.name || resource.id}</span>
                                                 `)}
                                             </div>
+                                        </div>
+                                    ` : nothing}
+                                    ${endpointList.length > 0 ? html`
+                                        <div class="provider-endpoints">
+                                            ${endpointList.map(endpoint => {
+                                                const endpointBusy = !!catalogBusy.value[endpoint.id];
+                                                const endpointModels = endpoint.models ?? [];
+                                                return html`
+                                                    <div class="endpoint-card">
+                                                        <div class="endpoint-row">
+                                                            <div>
+                                                                <div class="endpoint-title">${endpoint.displayName}</div>
+                                                                <div class="endpoint-meta">
+                                                                    ${endpoint.routeKind}${endpoint.originProvider ? ` · ${endpoint.originProvider}` : ''}${endpoint.originRouteLabel ? ` · ${endpoint.originRouteLabel}` : ''}
+                                                                </div>
+                                                            </div>
+                                                            <div class="endpoint-actions">
+                                                                <button
+                                                                    class="btn"
+                                                                    @click=${() => this._handleTestEndpoint(endpoint.id)}
+                                                                    ?disabled=${endpointBusy}
+                                                                >
+                                                                    ${endpointBusy ? 'Testing...' : 'Test'}
+                                                                </button>
+                                                                <button
+                                                                    class="btn"
+                                                                    @click=${() => this._handleRefreshEndpoint(endpoint.id)}
+                                                                    ?disabled=${endpointBusy}
+                                                                >
+                                                                    ${endpointBusy ? 'Refreshing...' : 'Refresh'}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        <div class="endpoint-models">
+                                                            ${endpointModels.length === 0 ? html`
+                                                                <span class="provider-models">No models discovered yet.</span>
+                                                            ` : endpointModels.map(model => html`
+                                                                <div class="endpoint-model">
+                                                                    <div class="endpoint-model__name">${model.displayName || model.modelId}</div>
+                                                                    <div class="endpoint-model__tags">
+                                                                        ${model.inputModalities.map(modality => html`<span class="endpoint-tag">in:${modality}</span>`)}
+                                                                        ${model.outputModalities.map(modality => html`<span class="endpoint-tag">out:${modality}</span>`)}
+                                                                        ${model.supportsStreaming ? html`<span class="endpoint-tag">streaming</span>` : nothing}
+                                                                        ${model.supportsToolCalling ? html`<span class="endpoint-tag">tools</span>` : nothing}
+                                                                        ${model.supportsStructuredOutput ? html`<span class="endpoint-tag">structured</span>` : nothing}
+                                                                        ${model.supportsVision ? html`<span class="endpoint-tag">vision</span>` : nothing}
+                                                                    </div>
+                                                                </div>
+                                                            `)}
+                                                        </div>
+                                                    </div>
+                                                `;
+                                            })}
                                         </div>
                                     ` : nothing}
                                 </div>

@@ -6,6 +6,10 @@ export function ClearNotifications() {
   return window['go']['wails']['Bridge']['ClearNotifications']();
 }
 
+export function AssignCatalogRole(arg1, arg2, arg3) {
+  return window['go']['wails']['Bridge']['AssignCatalogRole'](arg1, arg2, arg3);
+}
+
 export function ConfigureProvider(arg1, arg2) {
   return window['go']['wails']['Bridge']['ConfigureProvider'](arg1, arg2);
 }
@@ -22,6 +26,10 @@ export function CreateNotification(arg1) {
   return window['go']['wails']['Bridge']['CreateNotification'](arg1);
 }
 
+export function DeleteCatalogRole(arg1) {
+  return window['go']['wails']['Bridge']['DeleteCatalogRole'](arg1);
+}
+
 export function DeleteConversation(arg1) {
   return window['go']['wails']['Bridge']['DeleteConversation'](arg1);
 }
@@ -32,6 +40,10 @@ export function DeleteNotification(arg1) {
 
 export function DisconnectProvider(arg1) {
   return window['go']['wails']['Bridge']['DisconnectProvider'](arg1);
+}
+
+export function GetCatalogOverview() {
+  return window['go']['wails']['Bridge']['GetCatalogOverview']();
 }
 
 export function GetActiveConversation() {
@@ -70,8 +82,16 @@ export function RefreshProviderResources(arg1) {
   return window['go']['wails']['Bridge']['RefreshProviderResources'](arg1);
 }
 
+export function RefreshCatalogEndpoint(arg1) {
+  return window['go']['wails']['Bridge']['RefreshCatalogEndpoint'](arg1);
+}
+
 export function RestoreConversation(arg1) {
   return window['go']['wails']['Bridge']['RestoreConversation'](arg1);
+}
+
+export function SaveCatalogRole(arg1) {
+  return window['go']['wails']['Bridge']['SaveCatalogRole'](arg1);
 }
 
 export function SendMessage(arg1, arg2) {
@@ -90,8 +110,16 @@ export function StopStream() {
   return window['go']['wails']['Bridge']['StopStream']();
 }
 
+export function TestCatalogEndpoint(arg1) {
+  return window['go']['wails']['Bridge']['TestCatalogEndpoint'](arg1);
+}
+
 export function TestProvider(arg1) {
   return window['go']['wails']['Bridge']['TestProvider'](arg1);
+}
+
+export function UnassignCatalogRole(arg1, arg2) {
+  return window['go']['wails']['Bridge']['UnassignCatalogRole'](arg1, arg2);
 }
 
 export function UpdateConversationModel(arg1, arg2) {

@@ -54,6 +54,16 @@ func (e *Emitter) EmitProvidersUpdated() {
 	runtime.EventsEmit(ctx, "providers:updated")
 }
 
+// EmitCatalogUpdated notifies the frontend that catalog data has changed.
+func (e *Emitter) EmitCatalogUpdated() {
+
+	ctx := e.context()
+	if ctx == nil {
+		return
+	}
+	runtime.EventsEmit(ctx, "catalog:updated")
+}
+
 // EmitToast sends a toast notification to the frontend.
 func (e *Emitter) EmitToast(payload ports.ToastPayload) {
 

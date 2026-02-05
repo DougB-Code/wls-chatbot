@@ -32,23 +32,25 @@ type CredentialField struct {
 }
 
 const (
-	CredentialAPIKey    = "api_key"
-	CredentialAccountID = "account_id"
-	CredentialGatewayID = "gateway_id"
-	CredentialToken     = "token"
-	CredentialCloudflareToken = "cloudflare_api_token"
+	CredentialAPIKey            = "api_key"
+	CredentialAccountID         = "account_id"
+	CredentialGatewayID         = "gateway_id"
+	CredentialToken             = "token"
+	CredentialCloudflareToken   = "cloudflare_api_token"
+	CredentialOpenRouterReferer = "openrouter_referer"
+	CredentialOpenRouterTitle   = "openrouter_title"
 )
 
 // ProviderConfig holds provider configuration.
 type ProviderConfig struct {
-	Name         string  `json:"name"`
-	DisplayName  string  `json:"displayName"`
-	APIKey       string  `json:"apiKey,omitempty"`
-	BaseURL      string  `json:"baseUrl,omitempty"`
-	DefaultModel string  `json:"defaultModel"`
-	Models       []Model `json:"models"`
+	Name         string              `json:"name"`
+	DisplayName  string              `json:"displayName"`
+	APIKey       string              `json:"apiKey,omitempty"`
+	BaseURL      string              `json:"baseUrl,omitempty"`
+	DefaultModel string              `json:"defaultModel"`
+	Models       []Model             `json:"models"`
 	Credentials  ProviderCredentials `json:"credentials,omitempty"`
-	Logger       coreports.Logger `json:"-"`
+	Logger       coreports.Logger    `json:"-"`
 }
 
 // ChatOptions configures a chat completion request.

@@ -5,8 +5,11 @@ import {provider} from '../models';
 import {chat} from '../models';
 import {notifications} from '../models';
 import {domain} from '../models';
+import {catalog} from '../models';
 
 export function ClearNotifications():Promise<boolean>;
+
+export function AssignCatalogRole(arg1:string,arg2:string,arg3:string):Promise<catalog.RoleAssignmentResult>;
 
 export function ConfigureProvider(arg1:string,arg2:ports.ProviderCredentials):Promise<void>;
 
@@ -16,11 +19,15 @@ export function CreateConversation(arg1:string,arg2:string):Promise<chat.Convers
 
 export function CreateNotification(arg1:notifications.NotificationPayload):Promise<domain.Notification>;
 
+export function DeleteCatalogRole(arg1:string):Promise<void>;
+
 export function DeleteConversation(arg1:string):Promise<boolean>;
 
 export function DeleteNotification(arg1:number):Promise<boolean>;
 
 export function DisconnectProvider(arg1:string):Promise<void>;
+
+export function GetCatalogOverview():Promise<catalog.CatalogOverview>;
 
 export function GetActiveConversation():Promise<chat.Conversation>;
 
@@ -40,7 +47,11 @@ export function PurgeConversation(arg1:string):Promise<boolean>;
 
 export function RefreshProviderResources(arg1:string):Promise<void>;
 
+export function RefreshCatalogEndpoint(arg1:string):Promise<void>;
+
 export function RestoreConversation(arg1:string):Promise<boolean>;
+
+export function SaveCatalogRole(arg1:catalog.RoleSummary):Promise<catalog.RoleSummary>;
 
 export function SendMessage(arg1:string,arg2:string):Promise<chat.Message>;
 
@@ -50,7 +61,11 @@ export function SetActiveProvider(arg1:string):Promise<boolean>;
 
 export function StopStream():Promise<void>;
 
+export function TestCatalogEndpoint(arg1:string):Promise<void>;
+
 export function TestProvider(arg1:string):Promise<void>;
+
+export function UnassignCatalogRole(arg1:string,arg2:string):Promise<void>;
 
 export function UpdateConversationModel(arg1:string,arg2:string):Promise<boolean>;
 

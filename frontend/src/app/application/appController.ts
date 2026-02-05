@@ -8,9 +8,11 @@ import { setPreferredModelId } from '../../features/chat/state/chatPreferences';
 import { effectiveModelId } from '../../features/chat/application/chatSelectors';
 import { createNewConversation, deleteConversation, initChatPolicy, purgeConversation, restoreConversation, selectConversation, sendMessage, setConversationModel, setConversationProvider, stopStream } from '../../features/chat/application/chatPolicy';
 import { initProviderEvents, refreshProviders, connectProvider, configureProvider, disconnectProvider, refreshProviderResources, setActiveProvider } from '../../features/settings/application/providerPolicy';
+import { initCatalogEvents, refreshCatalogOverview, refreshCatalogEndpoint, testCatalogEndpoint, saveCatalogRole, deleteCatalogRole, assignCatalogRole, unassignCatalogRole } from '../../features/settings/application/catalogPolicy';
 import { initToastEvents } from './toastPolicy';
 import { notifyError } from './notificationPolicy';
 import { refreshNotifications } from '../../features/notifications/application/notificationPolicy';
+import type { RoleSummary } from '../../types/catalog';
 
 /**
  * initialize app policies and wire UI event handlers.
@@ -26,7 +28,8 @@ export async function initAppController(root: HTMLElement): Promise<void> {
 async function bootstrapPolicies(): Promise<void> {
     initToastEvents();
     initProviderEvents();
-    const results = await Promise.allSettled([refreshProviders(), initChatPolicy(), refreshNotifications()]);
+    initCatalogEvents();
+    const results = await Promise.allSettled([refreshProviders(), refreshCatalogOverview(), initChatPolicy(), refreshNotifications()]);
 
     for (const result of results) {
         if (result.status === 'rejected') {
@@ -176,6 +179,54 @@ function attachUiHandlers(root: HTMLElement): void {
         if (!detail?.name) return;
         void refreshProviderResources(detail.name).catch((err) => {
             notifyError((err as Error).message || `Failed to refresh ${detail.name}`, 'Provider refresh failed');
+        });
+    });
+
+    root.addEventListener('catalog-endpoint-test', (event: Event) => {
+        const detail = (event as CustomEvent<{ endpointId: string }>).detail;
+        if (!detail?.endpointId) return;
+        void testCatalogEndpoint(detail.endpointId).catch((err) => {
+            notifyError((err as Error).message || 'Failed to test endpoint', 'Endpoint test failed');
+        });
+    });
+
+    root.addEventListener('catalog-endpoint-refresh', (event: Event) => {
+        const detail = (event as CustomEvent<{ endpointId: string }>).detail;
+        if (!detail?.endpointId) return;
+        void refreshCatalogEndpoint(detail.endpointId).catch((err) => {
+            notifyError((err as Error).message || 'Failed to refresh endpoint', 'Endpoint refresh failed');
+        });
+    });
+
+    root.addEventListener('catalog-role-save', (event: Event) => {
+        const detail = (event as CustomEvent<{ role: RoleSummary }>).detail;
+        if (!detail?.role) return;
+        void saveCatalogRole(detail.role).catch((err) => {
+            notifyError((err as Error).message || 'Failed to save role', 'Role save failed');
+        });
+    });
+
+    root.addEventListener('catalog-role-delete', (event: Event) => {
+        const detail = (event as CustomEvent<{ roleId: string }>).detail;
+        if (!detail?.roleId) return;
+        void deleteCatalogRole(detail.roleId).catch((err) => {
+            notifyError((err as Error).message || 'Failed to delete role', 'Role delete failed');
+        });
+    });
+
+    root.addEventListener('catalog-role-assign', (event: Event) => {
+        const detail = (event as CustomEvent<{ roleId: string; modelEntryId: string }>).detail;
+        if (!detail?.roleId || !detail?.modelEntryId) return;
+        void assignCatalogRole(detail.roleId, detail.modelEntryId, 'user').catch((err) => {
+            notifyError((err as Error).message || 'Failed to assign role', 'Role assignment failed');
+        });
+    });
+
+    root.addEventListener('catalog-role-unassign', (event: Event) => {
+        const detail = (event as CustomEvent<{ roleId: string; modelEntryId: string }>).detail;
+        if (!detail?.roleId || !detail?.modelEntryId) return;
+        void unassignCatalogRole(detail.roleId, detail.modelEntryId).catch((err) => {
+            notifyError((err as Error).message || 'Failed to remove assignment', 'Role assignment failed');
         });
     });
 }

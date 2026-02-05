@@ -5,6 +5,7 @@ package wails
 import (
 	"context"
 
+	"github.com/MadeByDoug/wls-chatbot/internal/features/catalog/usecase"
 	"github.com/MadeByDoug/wls-chatbot/internal/features/chat/usecase"
 	"github.com/MadeByDoug/wls-chatbot/internal/features/notifications/usecase"
 	"github.com/MadeByDoug/wls-chatbot/internal/features/settings/usecase"
@@ -14,6 +15,7 @@ import (
 type Bridge struct {
 	chat          *chat.Orchestrator
 	providers     *provider.Orchestrator
+	catalog       *catalog.Orchestrator
 	notifications *notifications.Orchestrator
 	emitter       *Emitter
 
@@ -21,11 +23,12 @@ type Bridge struct {
 }
 
 // New creates a new Bridge instance.
-func New(chatPolicy *chat.Orchestrator, providerPolicy *provider.Orchestrator, notificationPolicy *notifications.Orchestrator, emitter *Emitter) *Bridge {
+func New(chatPolicy *chat.Orchestrator, providerPolicy *provider.Orchestrator, catalogPolicy *catalog.Orchestrator, notificationPolicy *notifications.Orchestrator, emitter *Emitter) *Bridge {
 
 	return &Bridge{
 		chat:          chatPolicy,
 		providers:     providerPolicy,
+		catalog:       catalogPolicy,
 		notifications: notificationPolicy,
 		emitter:       emitter,
 	}
@@ -37,6 +40,11 @@ func (b *Bridge) Startup(ctx context.Context) {
 	b.ctx = ctx
 	if b.emitter != nil {
 		b.emitter.SetContext(ctx)
+	}
+	if b.catalog != nil {
+		go func() {
+			_ = b.catalog.RefreshAll(b.ctxOrBackground())
+		}()
 	}
 }
 

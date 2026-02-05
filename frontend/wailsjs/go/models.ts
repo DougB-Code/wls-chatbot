@@ -434,3 +434,271 @@ export namespace provider {
 
 }
 
+
+export namespace catalog {
+    
+    export class ProviderSummary {
+        id: string;
+        name: string;
+        displayName: string;
+        adapterType: string;
+        trustMode: string;
+        baseUrl: string;
+        lastTestAt: number;
+        lastTestOk: boolean;
+        lastError?: string;
+        lastDiscoveryAt: number;
+    
+        static createFrom(source: any = {}) {
+            return new ProviderSummary(source);
+        }
+    
+        constructor(source: any = {}) {
+            if ('string' === typeof source) source = JSON.parse(source);
+            this.id = source["id"];
+            this.name = source["name"];
+            this.displayName = source["displayName"];
+            this.adapterType = source["adapterType"];
+            this.trustMode = source["trustMode"];
+            this.baseUrl = source["baseUrl"];
+            this.lastTestAt = source["lastTestAt"];
+            this.lastTestOk = source["lastTestOk"];
+            this.lastError = source["lastError"];
+            this.lastDiscoveryAt = source["lastDiscoveryAt"];
+        }
+    }
+    export class ModelSummary {
+        id: string;
+        endpointId: string;
+        modelId: string;
+        displayName: string;
+        availabilityState: string;
+        supportsStreaming: boolean;
+        supportsToolCalling: boolean;
+        supportsStructuredOutput: boolean;
+        supportsVision: boolean;
+        inputModalities: Array<string>;
+        outputModalities: Array<string>;
+    
+        static createFrom(source: any = {}) {
+            return new ModelSummary(source);
+        }
+    
+        constructor(source: any = {}) {
+            if ('string' === typeof source) source = JSON.parse(source);
+            this.id = source["id"];
+            this.endpointId = source["endpointId"];
+            this.modelId = source["modelId"];
+            this.displayName = source["displayName"];
+            this.availabilityState = source["availabilityState"];
+            this.supportsStreaming = source["supportsStreaming"];
+            this.supportsToolCalling = source["supportsToolCalling"];
+            this.supportsStructuredOutput = source["supportsStructuredOutput"];
+            this.supportsVision = source["supportsVision"];
+            this.inputModalities = source["inputModalities"] || [];
+            this.outputModalities = source["outputModalities"] || [];
+        }
+    }
+    export class EndpointSummary {
+        id: string;
+        providerId: string;
+        providerName: string;
+        providerDisplayName: string;
+        displayName: string;
+        adapterType: string;
+        baseUrl: string;
+        routeKind: string;
+        originProvider: string;
+        originRouteLabel: string;
+        lastTestAt: number;
+        lastTestOk: boolean;
+        lastError?: string;
+        models: Array<ModelSummary>;
+    
+        static createFrom(source: any = {}) {
+            return new EndpointSummary(source);
+        }
+    
+        constructor(source: any = {}) {
+            if ('string' === typeof source) source = JSON.parse(source);
+            this.id = source["id"];
+            this.providerId = source["providerId"];
+            this.providerName = source["providerName"];
+            this.providerDisplayName = source["providerDisplayName"];
+            this.displayName = source["displayName"];
+            this.adapterType = source["adapterType"];
+            this.baseUrl = source["baseUrl"];
+            this.routeKind = source["routeKind"];
+            this.originProvider = source["originProvider"];
+            this.originRouteLabel = source["originRouteLabel"];
+            this.lastTestAt = source["lastTestAt"];
+            this.lastTestOk = source["lastTestOk"];
+            this.lastError = source["lastError"];
+            this.models = this.convertValues(source["models"], ModelSummary);
+        }
+    
+        convertValues(a: any, classs: any, asMap: boolean = false): any {
+            if (!a) {
+                return a;
+            }
+            if (a.slice && a.map) {
+                return (a as any[]).map(elem => this.convertValues(elem, classs));
+            } else if ("object" === typeof a) {
+                if (asMap) {
+                    for (const key of Object.keys(a)) {
+                        a[key] = new classs(a[key]);
+                    }
+                    return a;
+                }
+                return new classs(a);
+            }
+            return a;
+        }
+    }
+    export class RoleRequirements {
+        requiredInputModalities: Array<string>;
+        requiredOutputModalities: Array<string>;
+        requiresStreaming: boolean;
+        requiresToolCalling: boolean;
+        requiresStructuredOutput: boolean;
+        requiresVision: boolean;
+    
+        static createFrom(source: any = {}) {
+            return new RoleRequirements(source);
+        }
+    
+        constructor(source: any = {}) {
+            if ('string' === typeof source) source = JSON.parse(source);
+            this.requiredInputModalities = source["requiredInputModalities"] || [];
+            this.requiredOutputModalities = source["requiredOutputModalities"] || [];
+            this.requiresStreaming = source["requiresStreaming"];
+            this.requiresToolCalling = source["requiresToolCalling"];
+            this.requiresStructuredOutput = source["requiresStructuredOutput"];
+            this.requiresVision = source["requiresVision"];
+        }
+    }
+    export class RoleConstraints {
+        maxCostTier?: string;
+        maxLatencyTier?: string;
+        minReliabilityTier?: string;
+    
+        static createFrom(source: any = {}) {
+            return new RoleConstraints(source);
+        }
+    
+        constructor(source: any = {}) {
+            if ('string' === typeof source) source = JSON.parse(source);
+            this.maxCostTier = source["maxCostTier"];
+            this.maxLatencyTier = source["maxLatencyTier"];
+            this.minReliabilityTier = source["minReliabilityTier"];
+        }
+    }
+    export class RoleAssignmentSummary {
+        roleId: string;
+        modelCatalogEntryId: string;
+        modelLabel: string;
+        assignedBy: string;
+        createdAt: number;
+        enabled: boolean;
+    
+        static createFrom(source: any = {}) {
+            return new RoleAssignmentSummary(source);
+        }
+    
+        constructor(source: any = {}) {
+            if ('string' === typeof source) source = JSON.parse(source);
+            this.roleId = source["roleId"];
+            this.modelCatalogEntryId = source["modelCatalogEntryId"];
+            this.modelLabel = source["modelLabel"];
+            this.assignedBy = source["assignedBy"];
+            this.createdAt = source["createdAt"];
+            this.enabled = source["enabled"];
+        }
+    }
+    export class RoleSummary {
+        id: string;
+        name: string;
+        requirements: RoleRequirements;
+        constraints: RoleConstraints;
+        assignments: Array<RoleAssignmentSummary>;
+    
+        static createFrom(source: any = {}) {
+            return new RoleSummary(source);
+        }
+    
+        constructor(source: any = {}) {
+            if ('string' === typeof source) source = JSON.parse(source);
+            this.id = source["id"];
+            this.name = source["name"];
+            this.requirements = this.convertValues(source["requirements"], RoleRequirements);
+            this.constraints = this.convertValues(source["constraints"], RoleConstraints);
+            this.assignments = this.convertValues(source["assignments"], RoleAssignmentSummary);
+        }
+    
+        convertValues(a: any, classs: any, asMap: boolean = false): any {
+            if (!a) {
+                return a;
+            }
+            if (a.slice && a.map) {
+                return (a as any[]).map(elem => this.convertValues(elem, classs));
+            } else if ("object" === typeof a) {
+                if (asMap) {
+                    for (const key of Object.keys(a)) {
+                        a[key] = new classs(a[key]);
+                    }
+                    return a;
+                }
+                return new classs(a);
+            }
+            return a;
+        }
+    }
+    export class RoleAssignmentResult {
+        missingModalities?: Array<string>;
+        missingFeatures?: Array<string>;
+    
+        static createFrom(source: any = {}) {
+            return new RoleAssignmentResult(source);
+        }
+    
+        constructor(source: any = {}) {
+            if ('string' === typeof source) source = JSON.parse(source);
+            this.missingModalities = source["missingModalities"] || [];
+            this.missingFeatures = source["missingFeatures"] || [];
+        }
+    }
+    export class CatalogOverview {
+        providers: Array<ProviderSummary>;
+        endpoints: Array<EndpointSummary>;
+        roles: Array<RoleSummary>;
+    
+        static createFrom(source: any = {}) {
+            return new CatalogOverview(source);
+        }
+    
+        constructor(source: any = {}) {
+            if ('string' === typeof source) source = JSON.parse(source);
+            this.providers = this.convertValues(source["providers"], ProviderSummary);
+            this.endpoints = this.convertValues(source["endpoints"], EndpointSummary);
+            this.roles = this.convertValues(source["roles"], RoleSummary);
+        }
+    
+        convertValues(a: any, classs: any, asMap: boolean = false): any {
+            if (!a) {
+                return a;
+            }
+            if (a.slice && a.map) {
+                return (a as any[]).map(elem => this.convertValues(elem, classs));
+            } else if ("object" === typeof a) {
+                if (asMap) {
+                    for (const key of Object.keys(a)) {
+                        a[key] = new classs(a[key]);
+                    }
+                    return a;
+                }
+                return new classs(a);
+            }
+            return a;
+        }
+    }
+}

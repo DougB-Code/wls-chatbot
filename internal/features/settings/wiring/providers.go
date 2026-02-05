@@ -48,6 +48,8 @@ func ProvidersFromConfig(cfg config.AppConfig, secrets ports.SecretStore, logger
 			providers = append(providers, provideradapter.NewGemini(providerConfig))
 		case "cloudflare":
 			providers = append(providers, provideradapter.NewCloudflare(providerConfig))
+		case "openrouter":
+			providers = append(providers, provideradapter.NewOpenRouter(providerConfig))
 		default:
 			return nil, fmt.Errorf("unknown provider type: %s", p.Type)
 		}
@@ -86,6 +88,8 @@ func providerSecretFields(providerType string) []string {
 
 	switch providerType {
 	case "openai", "anthropic", "gemini":
+		return []string{provideradapter.CredentialAPIKey}
+	case "openrouter":
 		return []string{provideradapter.CredentialAPIKey}
 	case "cloudflare":
 		return []string{
