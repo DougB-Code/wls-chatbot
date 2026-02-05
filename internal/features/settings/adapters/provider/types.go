@@ -2,7 +2,10 @@
 // internal/features/settings/adapters/provider/types.go
 package provider
 
-import "github.com/MadeByDoug/wls-chatbot/internal/features/settings/ports"
+import (
+	coreports "github.com/MadeByDoug/wls-chatbot/internal/core/ports"
+	"github.com/MadeByDoug/wls-chatbot/internal/features/settings/ports"
+)
 
 type Provider = ports.Provider
 type Config = ports.ProviderConfig
@@ -14,12 +17,21 @@ type Tool = ports.Tool
 type Chunk = ports.Chunk
 type ToolCall = ports.ToolCall
 type UsageStats = ports.UsageStats
+type CredentialField = ports.CredentialField
+type ProviderCredentials = ports.ProviderCredentials
 type CacheEntry = ports.ProviderCacheEntry
 type CacheSnapshot = ports.ProviderCacheSnapshot
+type Logger = coreports.Logger
+type LogField = coreports.LogField
 
 const (
 	RoleUser      = ports.RoleUser
 	RoleAssistant = ports.RoleAssistant
 	RoleSystem    = ports.RoleSystem
 	RoleTool      = ports.RoleTool
+	CredentialAPIKey    = ports.CredentialAPIKey
+	CredentialAccountID = ports.CredentialAccountID
+	CredentialGatewayID = ports.CredentialGatewayID
+	CredentialToken     = ports.CredentialToken
+	CredentialCloudflareToken = ports.CredentialCloudflareToken
 )

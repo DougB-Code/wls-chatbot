@@ -5,4 +5,4 @@
 /**
  * enumerate workspace sections.
  */
-export type SectionId = 'chat' | 'settings';
+export type SectionId = 'chat' | 'notifications' | 'settings';

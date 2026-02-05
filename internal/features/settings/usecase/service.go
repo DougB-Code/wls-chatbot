@@ -13,13 +13,15 @@ import (
 
 // Info represents provider information for the frontend.
 type Info struct {
-	Name        string  `json:"name"`
-	DisplayName string  `json:"displayName"`
-	Models      []Model `json:"models"`
-	Resources   []Model `json:"resources"`
-	IsConnected bool    `json:"isConnected"`
-	IsActive    bool    `json:"isActive"`
-	Status      *Status `json:"status,omitempty"`
+	Name             string            `json:"name"`
+	DisplayName      string            `json:"displayName"`
+	CredentialFields []CredentialField `json:"credentialFields,omitempty"`
+	CredentialValues map[string]string `json:"credentialValues,omitempty"`
+	Models           []Model           `json:"models"`
+	Resources        []Model           `json:"resources"`
+	IsConnected      bool              `json:"isConnected"`
+	IsActive         bool              `json:"isActive"`
+	Status           *Status           `json:"status,omitempty"`
 }
 
 // Status represents the last known health check for a provider.
@@ -47,6 +49,7 @@ type Service struct {
 	status            map[string]Status
 	refreshing        map[string]bool
 	mu                sync.RWMutex
+	inputsStore       InputsStore
 	secrets           SecretStore
 	logger            Logger
 }
@@ -72,7 +75,7 @@ func (s *Service) validateProvider(ctx context.Context, name string, p Provider)
 }
 
 // NewService creates a new provider service.
-func NewService(registry Registry, cache Cache, secrets SecretStore, updateFrequency map[string]time.Duration, logger Logger) *Service {
+func NewService(registry Registry, cache Cache, secrets SecretStore, inputs InputsStore, updateFrequency map[string]time.Duration, logger Logger) *Service {
 
 	s := &Service{
 		registry:          registry,
@@ -83,6 +86,7 @@ func NewService(registry Registry, cache Cache, secrets SecretStore, updateFrequ
 		updateFrequency:   copyUpdateFrequency(updateFrequency),
 		status:            make(map[string]Status),
 		refreshing:        make(map[string]bool),
+		inputsStore:       inputs,
 		secrets:           secrets,
 		logger:            logger,
 	}
@@ -175,13 +179,241 @@ func extractModelIDs(models []Model) []string {
 	return ids
 }
 
+// providerCredentialFields returns the credential schema for a provider.
+func (s *Service) providerCredentialFields(p Provider) []CredentialField {
+
+	if p == nil {
+		return nil
+	}
+	return p.CredentialFields()
+}
+
+// loadProviderInputs returns stored non-secret inputs for a provider.
+func (s *Service) loadProviderInputs(name string) ProviderCredentials {
+
+	if s.inputsStore == nil {
+		return nil
+	}
+	inputs, err := s.inputsStore.LoadProviderInputs(name)
+	if err != nil {
+		s.logWarn("Failed to load provider inputs", err, LogField{Key: "provider", Value: name})
+		return nil
+	}
+	return inputs
+}
+
+// loadProviderSecrets returns stored secret values for a provider.
+func (s *Service) loadProviderSecrets(name string, fields []CredentialField) ProviderCredentials {
+
+	if s.secrets == nil {
+		return nil
+	}
+
+	credentials := make(ProviderCredentials)
+	for _, field := range fields {
+		if !field.Secret {
+			continue
+		}
+		value, err := s.secrets.GetProviderSecret(name, field.Name)
+		if err != nil || strings.TrimSpace(value) == "" {
+			continue
+		}
+		credentials[field.Name] = value
+	}
+
+	if len(credentials) == 0 {
+		return nil
+	}
+	return credentials
+}
+
+// mergeCredentialValues combines stored and incoming credential values.
+func mergeCredentialValues(base, override ProviderCredentials) ProviderCredentials {
+
+	if len(base) == 0 && len(override) == 0 {
+		return nil
+	}
+
+	merged := make(ProviderCredentials)
+	for key, value := range base {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		merged[key] = trimmed
+	}
+	for key, value := range override {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		merged[key] = trimmed
+	}
+
+	if len(merged) == 0 {
+		return nil
+	}
+	return merged
+}
+
+// validateRequiredCredentials verifies all required fields are present.
+func validateRequiredCredentials(fields []CredentialField, credentials ProviderCredentials) error {
+
+	for _, field := range fields {
+		if !field.Required {
+			continue
+		}
+		if strings.TrimSpace(credentials[field.Name]) == "" {
+			label := field.Label
+			if label == "" {
+				label = field.Name
+			}
+			return fmt.Errorf("missing required credential: %s", label)
+		}
+	}
+	return nil
+}
+
+// filterCredentialValues returns credential values matching the secret flag.
+func filterCredentialValues(fields []CredentialField, credentials ProviderCredentials, secret bool) ProviderCredentials {
+
+	if len(credentials) == 0 {
+		return nil
+	}
+
+	filtered := make(ProviderCredentials)
+	for _, field := range fields {
+		if field.Secret != secret {
+			continue
+		}
+		value := strings.TrimSpace(credentials[field.Name])
+		if value == "" {
+			continue
+		}
+		filtered[field.Name] = value
+	}
+
+	if len(filtered) == 0 {
+		return nil
+	}
+	return filtered
+}
+
+// resolveCredentials merges stored and incoming credentials with validation.
+func (s *Service) resolveCredentials(name string, fields []CredentialField, input ProviderCredentials) (ProviderCredentials, error) {
+
+	stored := mergeCredentialValues(s.loadProviderInputs(name), s.loadProviderSecrets(name, fields))
+	merged := mergeCredentialValues(stored, input)
+	if err := validateRequiredCredentials(fields, merged); err != nil {
+		return nil, err
+	}
+	return merged, nil
+}
+
+// persistCredentials saves provided credential values to storage.
+func (s *Service) persistCredentials(name string, fields []CredentialField, input ProviderCredentials) error {
+
+	if len(input) == 0 {
+		return nil
+	}
+
+	var secretUpdates ProviderCredentials
+	var inputUpdates ProviderCredentials
+
+	for _, field := range fields {
+		value, ok := input[field.Name]
+		if !ok {
+			continue
+		}
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if field.Secret {
+			if secretUpdates == nil {
+				secretUpdates = make(ProviderCredentials)
+			}
+			secretUpdates[field.Name] = trimmed
+		} else {
+			if inputUpdates == nil {
+				inputUpdates = make(ProviderCredentials)
+			}
+			inputUpdates[field.Name] = trimmed
+		}
+	}
+
+	if len(secretUpdates) > 0 {
+		if s.secrets == nil {
+			return fmt.Errorf("secret store not configured")
+		}
+		for fieldName, value := range secretUpdates {
+			if err := s.secrets.SaveProviderSecret(name, fieldName, value); err != nil {
+				return err
+			}
+		}
+	}
+
+	if len(inputUpdates) > 0 {
+		if s.inputsStore == nil {
+			return fmt.Errorf("config store not configured")
+		}
+		mergedInputs := mergeCredentialValues(s.loadProviderInputs(name), inputUpdates)
+		if err := s.inputsStore.SaveProviderInputs(name, mergedInputs); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// clearStoredCredentials removes stored inputs and secrets for a provider.
+func (s *Service) clearStoredCredentials(name string, fields []CredentialField) error {
+
+	if s.inputsStore != nil {
+		if err := s.inputsStore.SaveProviderInputs(name, nil); err != nil {
+			return err
+		}
+	}
+	if s.secrets == nil {
+		return nil
+	}
+	for _, field := range fields {
+		if !field.Secret {
+			continue
+		}
+		_ = s.secrets.DeleteProviderSecret(name, field.Name)
+	}
+	return nil
+}
+
+// isProviderConfigured returns true when required credential fields are present.
+func (s *Service) isProviderConfigured(name string, fields []CredentialField) bool {
+
+	credentials := mergeCredentialValues(s.loadProviderInputs(name), s.loadProviderSecrets(name, fields))
+	return validateRequiredCredentials(fields, credentials) == nil
+}
+
+// applyStoredCredentials updates a provider with stored credentials.
+func (s *Service) applyStoredCredentials(name string, p Provider) {
+
+	fields := s.providerCredentialFields(p)
+	credentials := mergeCredentialValues(s.loadProviderInputs(name), s.loadProviderSecrets(name, fields))
+	if len(credentials) == 0 {
+		return
+	}
+	_ = p.Configure(Config{Credentials: credentials})
+}
+
 // refreshResourcesIfStale launches a background refresh when cache is outdated.
 func (s *Service) refreshResourcesIfStale(name string) {
 
 	if !s.shouldRefreshResources(name) {
 		return
 	}
-	if s.secrets == nil || !s.secrets.HasProviderKey(name) {
+	if s.registry == nil {
+		return
+	}
+	if !s.isProviderConfigured(name, s.providerCredentialFields(s.registry.Get(name))) {
 		return
 	}
 	if !s.markRefreshing(name) {
@@ -253,15 +485,11 @@ func (s *Service) clearRefreshing(name string) {
 // ensureProviderConfigured applies stored credentials to a provider.
 func (s *Service) ensureProviderConfigured(name string) {
 
-	if s.secrets == nil {
-		return
-	}
-	key, err := s.secrets.GetProviderKey(name)
-	if err != nil || key == "" {
+	if s.registry == nil {
 		return
 	}
 	if p := s.registry.Get(name); p != nil {
-		_ = p.Configure(Config{APIKey: key})
+		s.applyStoredCredentials(name, p)
 	}
 }
 
@@ -277,21 +505,25 @@ func (s *Service) List() []Info {
 	info := make([]Info, len(providers))
 	for i, p := range providers {
 		s.refreshResourcesIfStale(p.Name())
+		fields := s.providerCredentialFields(p)
+		inputs := s.loadProviderInputs(p.Name())
 		info[i] = Info{
-			Name:        p.Name(),
-			DisplayName: p.DisplayName(),
-			Models:      p.Models(),
-			Resources:   s.GetResources(p.Name()),
-			IsConnected: s.secrets != nil && s.secrets.HasProviderKey(p.Name()),
-			IsActive:    active != nil && active.Name() == p.Name(),
-			Status:      s.GetStatus(p.Name()),
+			Name:             p.Name(),
+			DisplayName:      p.DisplayName(),
+			CredentialFields: fields,
+			CredentialValues: filterCredentialValues(fields, inputs, false),
+			Models:           p.Models(),
+			Resources:        s.GetResources(p.Name()),
+			IsConnected:      s.isProviderConfigured(p.Name(), fields),
+			IsActive:         active != nil && active.Name() == p.Name(),
+			Status:           s.GetStatus(p.Name()),
 		}
 	}
 	return info
 }
 
 // Connect configures, validates, and persists a provider connection.
-func (s *Service) Connect(ctx context.Context, name, apiKey string) (Info, error) {
+func (s *Service) Connect(ctx context.Context, name string, credentials ProviderCredentials) (Info, error) {
 
 	s.logInfo("Connecting provider", LogField{Key: "provider", Value: name})
 	p := s.registry.Get(name)
@@ -302,7 +534,15 @@ func (s *Service) Connect(ctx context.Context, name, apiKey string) (Info, error
 		return Info{}, err
 	}
 
-	if err := p.Configure(Config{APIKey: apiKey}); err != nil {
+	fields := s.providerCredentialFields(p)
+	resolved, err := s.resolveCredentials(name, fields, credentials)
+	if err != nil {
+		s.SetStatus(name, false, err.Error())
+		s.logWarn("Missing required credentials", err, LogField{Key: "provider", Value: name})
+		return Info{}, err
+	}
+
+	if err := p.Configure(Config{Credentials: resolved}); err != nil {
 		s.SetStatus(name, false, err.Error())
 		s.logError("Failed to configure provider", err, LogField{Key: "provider", Value: name})
 		return Info{}, err
@@ -327,15 +567,9 @@ func (s *Service) Connect(ctx context.Context, name, apiKey string) (Info, error
 		return Info{}, err
 	}
 
-	if s.secrets == nil {
-		err := fmt.Errorf("secret store not configured")
+	if err := s.persistCredentials(name, fields, credentials); err != nil {
 		s.SetStatus(name, false, err.Error())
-		s.logError("Failed to save API key", err, LogField{Key: "provider", Value: name})
-		return Info{}, err
-	}
-	if err := s.secrets.SaveProviderKey(name, apiKey); err != nil {
-		s.SetStatus(name, false, err.Error())
-		s.logError("Failed to save API key", err, LogField{Key: "provider", Value: name})
+		s.logError("Failed to save credentials", err, LogField{Key: "provider", Value: name})
 		return Info{}, err
 	}
 
@@ -344,14 +578,17 @@ func (s *Service) Connect(ctx context.Context, name, apiKey string) (Info, error
 
 	active := s.registry.GetActive()
 	s.SetStatus(name, true, "")
+	inputs := s.loadProviderInputs(p.Name())
 	return Info{
-		Name:        p.Name(),
-		DisplayName: p.DisplayName(),
-		Models:      p.Models(),
-		Resources:   s.GetResources(p.Name()),
-		IsConnected: true,
-		IsActive:    active != nil && active.Name() == p.Name(),
-		Status:      s.GetStatus(p.Name()),
+		Name:             p.Name(),
+		DisplayName:      p.DisplayName(),
+		CredentialFields: fields,
+		CredentialValues: filterCredentialValues(fields, inputs, false),
+		Models:           p.Models(),
+		Resources:        s.GetResources(p.Name()),
+		IsConnected:      s.isProviderConfigured(p.Name(), fields),
+		IsActive:         active != nil && active.Name() == p.Name(),
+		Status:           s.GetStatus(p.Name()),
 	}, nil
 }
 
@@ -359,20 +596,20 @@ func (s *Service) Connect(ctx context.Context, name, apiKey string) (Info, error
 func (s *Service) Disconnect(name string) error {
 
 	s.logInfo("Disconnecting provider", LogField{Key: "provider", Value: name})
-	// 1. Remove from secure store
-	if s.secrets == nil {
-		return fmt.Errorf("secret store not configured")
-	}
-	if err := s.secrets.DeleteProviderKey(name); err != nil {
-		s.logError("Failed to remove key", err, LogField{Key: "provider", Value: name})
-		return fmt.Errorf("failed to remove key from secure store: %w", err)
+	fields := s.providerCredentialFields(s.registry.Get(name))
+	if err := s.clearStoredCredentials(name, fields); err != nil {
+		s.logError("Failed to remove credentials", err, LogField{Key: "provider", Value: name})
+		return fmt.Errorf("failed to remove credentials: %w", err)
 	}
 
 	// 2. Clear from registry/memory
 	p := s.registry.Get(name)
 	if p != nil {
-		// Reset configuration with empty API key
-		_ = p.Configure(Config{APIKey: ""})
+		clear := make(ProviderCredentials)
+		for _, field := range fields {
+			clear[field.Name] = ""
+		}
+		_ = p.Configure(Config{Credentials: clear})
 	}
 
 	// 3. Clear cached resources
@@ -398,7 +635,7 @@ func (s *Service) Disconnect(name string) error {
 // selectNextActiveProvider finds the next connected provider after the given name.
 func (s *Service) selectNextActiveProvider(disconnected string) string {
 
-	if s.registry == nil || s.secrets == nil {
+	if s.registry == nil {
 		return ""
 	}
 
@@ -425,7 +662,7 @@ func (s *Service) selectNextActiveProvider(disconnected string) string {
 		if name == "" || name == disconnected {
 			continue
 		}
-		if s.secrets.HasProviderKey(name) {
+		if s.isProviderConfigured(name, s.providerCredentialFields(candidate)) {
 			return name
 		}
 	}
@@ -434,7 +671,7 @@ func (s *Service) selectNextActiveProvider(disconnected string) string {
 }
 
 // Configure updates and persists provider credentials while refreshing status.
-func (s *Service) Configure(name, apiKey string) error {
+func (s *Service) Configure(name string, credentials ProviderCredentials) error {
 
 	s.logInfo("Configuring provider", LogField{Key: "provider", Value: name})
 	p := s.registry.Get(name)
@@ -444,13 +681,21 @@ func (s *Service) Configure(name, apiKey string) error {
 		s.logWarn("Provider not found during configure", err, LogField{Key: "provider", Value: name})
 		return err
 	}
-	if strings.TrimSpace(apiKey) == "" {
-		err := fmt.Errorf("api key required for provider: %s", name)
+	trimmedInput := mergeCredentialValues(nil, credentials)
+	if len(trimmedInput) == 0 {
+		err := fmt.Errorf("credentials required for provider: %s", name)
 		s.SetStatus(name, false, err.Error())
-		s.logWarn("Empty API key during configure", err, LogField{Key: "provider", Value: name})
+		s.logWarn("Empty credentials during configure", err, LogField{Key: "provider", Value: name})
 		return err
 	}
-	if err := p.Configure(Config{APIKey: apiKey}); err != nil {
+	fields := s.providerCredentialFields(p)
+	resolved, err := s.resolveCredentials(name, fields, credentials)
+	if err != nil {
+		s.SetStatus(name, false, err.Error())
+		s.logWarn("Missing required credentials", err, LogField{Key: "provider", Value: name})
+		return err
+	}
+	if err := p.Configure(Config{Credentials: resolved}); err != nil {
 		s.SetStatus(name, false, err.Error())
 		s.logError("Failed to configure provider", err, LogField{Key: "provider", Value: name})
 		return err
@@ -474,15 +719,9 @@ func (s *Service) Configure(name, apiKey string) error {
 		return err
 	}
 
-	if s.secrets == nil {
-		err := fmt.Errorf("secret store not configured")
+	if err := s.persistCredentials(name, fields, credentials); err != nil {
 		s.SetStatus(name, false, err.Error())
-		s.logError("Failed to save API key", err, LogField{Key: "provider", Value: name})
-		return err
-	}
-	if err := s.secrets.SaveProviderKey(name, apiKey); err != nil {
-		s.SetStatus(name, false, err.Error())
-		s.logError("Failed to save API key", err, LogField{Key: "provider", Value: name})
+		s.logError("Failed to save credentials", err, LogField{Key: "provider", Value: name})
 		return err
 	}
 
@@ -506,7 +745,16 @@ func (s *Service) TestConnection(ctx context.Context, name string) error {
 		s.SetStatus(name, false, err.Error())
 		return err
 	}
-	s.ensureProviderConfigured(name)
+	fields := s.providerCredentialFields(p)
+	resolved, err := s.resolveCredentials(name, fields, nil)
+	if err != nil {
+		s.SetStatus(name, false, err.Error())
+		return err
+	}
+	if err := p.Configure(Config{Credentials: resolved}); err != nil {
+		s.SetStatus(name, false, err.Error())
+		return err
+	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	if err := p.TestConnection(ctx); err != nil {
@@ -529,7 +777,16 @@ func (s *Service) RefreshResources(ctx context.Context, name string) error {
 		return err
 	}
 
-	s.ensureProviderConfigured(name)
+	fields := s.providerCredentialFields(p)
+	resolved, err := s.resolveCredentials(name, fields, nil)
+	if err != nil {
+		s.SetStatus(name, false, err.Error())
+		return err
+	}
+	if err := p.Configure(Config{Credentials: resolved}); err != nil {
+		s.SetStatus(name, false, err.Error())
+		return err
+	}
 	if lister, ok := p.(resourceLister); ok {
 		resources, err := lister.ListResources(ctx)
 		if err != nil {

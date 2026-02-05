@@ -3,7 +3,7 @@
  * frontend/src/types/wails.ts
  */
 
-import type { chat, ports, provider } from '../../wailsjs/go/models';
+import type { chat, ports, provider, notifications } from '../../wailsjs/go/models';
 
 export type ActionExecution = chat.ActionExecution;
 export type Artifact = chat.Artifact;
@@ -17,3 +17,5 @@ export type MessageMetadata = chat.MessageMetadata;
 export type ProviderModel = ports.Model;
 export type ProviderInfo = provider.Info;
 export type ProviderStatus = provider.Status;
+export type Notification = notifications.Notification;
+export type NotificationPayload = notifications.NotificationPayload;

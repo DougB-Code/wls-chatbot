@@ -4,12 +4,14 @@
  */
 
 import { onEvent, offEvent } from '../../core/infrastructure/wails/events';
-import { pushToast, dismissToast } from '../state/toastSignals';
+import { pushToast } from '../state/toastSignals';
+import { createNotification } from '../../features/notifications/application/notificationPolicy';
 
 export type ToastPayload = {
     type?: 'info' | 'error';
     title?: string;
     message?: string;
+    durationMs?: number;
 };
 
 let toastEventsInitialized = false;
@@ -22,12 +24,19 @@ export function initToastEvents(): void {
     toastEventsInitialized = true;
     onEvent<ToastPayload>('toast', (payload) => {
         const message = payload?.message ?? 'Something went wrong.';
-        const id = pushToast({
-            type: payload?.type === 'error' ? 'error' : 'info',
-            title: payload?.title ?? (payload?.type === 'error' ? 'Connection issue' : ''),
+        const type = payload?.type === 'error' ? 'error' : 'info';
+        const title = payload?.title ?? (type === 'error' ? 'Connection issue' : '');
+        pushToast({
+            type,
+            title,
             message,
+            durationMs: payload?.durationMs,
         });
-        window.setTimeout(() => dismissToast(id), 8000);
+        void createNotification({
+            type,
+            title,
+            message,
+        }).catch(() => undefined);
     });
 }
 

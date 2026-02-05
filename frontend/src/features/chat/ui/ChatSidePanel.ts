@@ -20,14 +20,11 @@ export class ChatSidePanel extends SignalWatcher(LitElement) {
             height: 100%;
         }
 
-        .panel {
-            height: 100%;
-            min-height: 0;
-            padding: 20px 16px;
+        .panel-content {
             display: flex;
             flex-direction: column;
             gap: 20px;
-            box-sizing: border-box;
+            min-height: 0;
         }
 
         .title {
@@ -335,14 +332,13 @@ export class ChatSidePanel extends SignalWatcher(LitElement) {
      * render chat side panel metadata.
      */
     render() {
-        const activeTitle = activeConversation.value?.title ?? 'No active conversation';
         const activeConversationId = activeConversation.value?.id ?? '';
         const sortedConversations = [...conversations.value.values()]
             .filter((conversation) => this._showDeleted ? conversation.isArchived : !conversation.isArchived)
             .sort((left, right) => right.updatedAt - left.updatedAt);
 
         return html`
-            <aside class="panel">
+            <div class="panel-content">
                 <div>
                     <h2 class="title">Chat Panel</h2>
                     <p class="subtitle">Context for the active chat workspace.</p>
@@ -351,11 +347,6 @@ export class ChatSidePanel extends SignalWatcher(LitElement) {
                 <button class="create-chat-button" @click=${() => this._handleCreateChat()}>
                     New Chat
                 </button>
-
-                <section class="section">
-                    <h3 class="section-label">Active Conversation</h3>
-                    <p class="section-value">${activeTitle}</p>
-                </section>
 
                 <section class="section">
                     <div class="history-header">
@@ -419,7 +410,7 @@ export class ChatSidePanel extends SignalWatcher(LitElement) {
                             `)}
                     </div>
                 </section>
-            </aside>
+            </div>
         `;
     }
 }

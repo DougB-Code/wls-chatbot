@@ -58,9 +58,29 @@ func (g *Gemini) Models() []Model {
 	return g.models
 }
 
+// CredentialFields returns the expected credential inputs.
+func (g *Gemini) CredentialFields() []CredentialField {
+
+	return []CredentialField{
+		{
+			Name:     CredentialAPIKey,
+			Label:    "API Key",
+			Required: true,
+			Secret:   true,
+		},
+	}
+}
+
 // Configure updates the provider configuration.
 func (g *Gemini) Configure(config Config) error {
-	g.apiKey = config.APIKey
+	if config.Credentials != nil {
+		if value, ok := config.Credentials[CredentialAPIKey]; ok {
+			g.apiKey = strings.TrimSpace(value)
+		}
+	}
+	if strings.TrimSpace(config.APIKey) != "" {
+		g.apiKey = config.APIKey
+	}
 	if config.BaseURL != "" {
 		g.baseURL = config.BaseURL
 	}

@@ -5,6 +5,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	coreports "github.com/MadeByDoug/wls-chatbot/internal/core/ports"
 )
@@ -29,20 +30,20 @@ func (o *Orchestrator) GetProviders() []Info {
 	return o.providers.List()
 }
 
-// ConnectProvider connects and configures a provider with the given API key.
-func (o *Orchestrator) ConnectProvider(ctx context.Context, name, apiKey string) (Info, error) {
+// ConnectProvider connects and configures a provider with the given credentials.
+func (o *Orchestrator) ConnectProvider(ctx context.Context, name string, credentials ProviderCredentials) (Info, error) {
 
-	info, err := o.providers.Connect(ctx, name, apiKey)
+	info, err := o.providers.Connect(ctx, name, credentials)
 	if err == nil {
 		o.emitProvidersUpdated()
 	}
 	return info, err
 }
 
-// ConfigureProvider updates a provider's API key without full connection flow.
-func (o *Orchestrator) ConfigureProvider(name, apiKey string) error {
+// ConfigureProvider updates a provider's credentials without full connection flow.
+func (o *Orchestrator) ConfigureProvider(name string, credentials ProviderCredentials) error {
 
-	return o.providers.Configure(name, apiKey)
+	return o.providers.Configure(name, credentials)
 }
 
 // DisconnectProvider removes a provider's credentials and resets its state.
@@ -144,28 +145,61 @@ func (o *Orchestrator) emitProviderSwitchToast(previousActive, currentActive Pro
 // ensureActiveProvider selects an active provider with valid credentials.
 func (o *Orchestrator) ensureActiveProvider() {
 
-	active := o.providers.GetActiveProvider()
-	if active != nil && o.secrets != nil && o.secrets.HasProviderKey(active.Name()) {
-		return
-	}
-
 	infos := o.providers.List()
+	active := o.providers.GetActiveProvider()
+	if active != nil {
+		for _, info := range infos {
+			if info.Name != active.Name() || !info.IsConnected {
+				continue
+			}
+			if prov := o.providers.GetProvider(info.Name); prov != nil {
+				if err := o.applyProviderSecrets(info.Name, prov); err == nil {
+					return
+				}
+			}
+			break
+		}
+	}
 	for _, info := range infos {
 		if !info.IsConnected {
 			continue
 		}
-		if o.secrets == nil {
-			return
-		}
-		key, err := o.secrets.GetProviderKey(info.Name)
-		if err != nil || key == "" {
+		prov := o.providers.GetProvider(info.Name)
+		if prov == nil {
 			continue
 		}
-		if prov := o.providers.GetProvider(info.Name); prov != nil {
-			_ = prov.Configure(Config{APIKey: key})
+		if err := o.applyProviderSecrets(info.Name, prov); err != nil {
+			continue
 		}
 		if o.providers.SetActive(info.Name) {
 			return
 		}
 	}
+}
+
+// applyProviderSecrets loads stored secrets into the provider instance.
+func (o *Orchestrator) applyProviderSecrets(name string, prov Provider) error {
+
+	if o.secrets == nil {
+		return fmt.Errorf("secret store not configured")
+	}
+	fields := prov.CredentialFields()
+	credentials := make(ProviderCredentials)
+	for _, field := range fields {
+		if !field.Secret {
+			continue
+		}
+		value, err := o.secrets.GetProviderSecret(name, field.Name)
+		if err != nil || strings.TrimSpace(value) == "" {
+			if field.Required {
+				return fmt.Errorf("missing required credential: %s", field.Name)
+			}
+			continue
+		}
+		credentials[field.Name] = value
+	}
+	if len(credentials) > 0 {
+		_ = prov.Configure(Config{Credentials: credentials})
+	}
+	return nil
 }

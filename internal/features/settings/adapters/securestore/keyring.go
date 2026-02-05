@@ -19,23 +19,29 @@ func NewKeyringStore(serviceName string) *KeyringStore {
 
 var _ ports.SecretStore = (*KeyringStore)(nil)
 
-// SaveProviderKey stores the provider API key in the OS keychain.
-func (s *KeyringStore) SaveProviderKey(providerName, apiKey string) error {
-	return keyring.Set(s.serviceName, providerName, apiKey)
+// SaveProviderSecret stores a provider secret field in the OS keychain.
+func (s *KeyringStore) SaveProviderSecret(providerName, fieldName, value string) error {
+	return keyring.Set(s.serviceName, s.credentialKey(providerName, fieldName), value)
 }
 
-// GetProviderKey retrieves the provider API key from the OS keychain.
-func (s *KeyringStore) GetProviderKey(providerName string) (string, error) {
-	return keyring.Get(s.serviceName, providerName)
+// GetProviderSecret retrieves a provider secret field from the OS keychain.
+func (s *KeyringStore) GetProviderSecret(providerName, fieldName string) (string, error) {
+	return keyring.Get(s.serviceName, s.credentialKey(providerName, fieldName))
 }
 
-// HasProviderKey returns true when a provider API key is stored.
-func (s *KeyringStore) HasProviderKey(providerName string) bool {
-	_, err := keyring.Get(s.serviceName, providerName)
+// HasProviderSecret returns true when a provider secret field is stored.
+func (s *KeyringStore) HasProviderSecret(providerName, fieldName string) bool {
+	_, err := keyring.Get(s.serviceName, s.credentialKey(providerName, fieldName))
 	return err == nil
 }
 
-// DeleteProviderKey removes a stored provider API key.
-func (s *KeyringStore) DeleteProviderKey(providerName string) error {
-	return keyring.Delete(s.serviceName, providerName)
+// DeleteProviderSecret removes a stored provider secret field.
+func (s *KeyringStore) DeleteProviderSecret(providerName, fieldName string) error {
+	return keyring.Delete(s.serviceName, s.credentialKey(providerName, fieldName))
+}
+
+// credentialKey builds the keyring entry key for a provider secret field.
+func (s *KeyringStore) credentialKey(providerName, fieldName string) string {
+
+	return providerName + ":" + fieldName
 }

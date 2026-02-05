@@ -12,6 +12,8 @@ export type ToastMessage = {
     type: ToastType;
     title?: string;
     message: string;
+    createdAt: number;
+    durationMs: number;
 };
 
 export const toasts = signal<ToastMessage[]>([]);
@@ -21,9 +23,11 @@ let toastId = 0;
 /**
  * add a toast to state and return its id.
  */
-export function pushToast(payload: Omit<ToastMessage, 'id'>): number {
+export function pushToast(payload: Omit<ToastMessage, 'id' | 'createdAt' | 'durationMs'> & { durationMs?: number }): number {
     const id = ++toastId;
-    toasts.value = [...toasts.value, { ...payload, id }];
+    const createdAt = Date.now();
+    const durationMs = payload.durationMs ?? 8000;
+    toasts.value = [...toasts.value, { ...payload, id, createdAt, durationMs }];
     return id;
 }
 

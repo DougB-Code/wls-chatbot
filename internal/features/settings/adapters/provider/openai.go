@@ -3,14 +3,8 @@
 package provider
 
 import (
-	"bufio"
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
-	"net/http"
 	"sort"
 	"strings"
 
@@ -67,10 +61,30 @@ func (o *OpenAI) Models() []Model {
 	return o.models
 }
 
+// CredentialFields returns the expected credential inputs.
+func (o *OpenAI) CredentialFields() []CredentialField {
+
+	return []CredentialField{
+		{
+			Name:     CredentialAPIKey,
+			Label:    "API Key",
+			Required: true,
+			Secret:   true,
+		},
+	}
+}
+
 // Configure updates the provider configuration.
 func (o *OpenAI) Configure(config Config) error {
 
-	o.apiKey = config.APIKey
+	if config.Credentials != nil {
+		if value, ok := config.Credentials[CredentialAPIKey]; ok {
+			o.apiKey = strings.TrimSpace(value)
+		}
+	}
+	if strings.TrimSpace(config.APIKey) != "" {
+		o.apiKey = config.APIKey
+	}
 	if config.BaseURL != "" {
 		o.baseURL = config.BaseURL
 	}
@@ -104,24 +118,9 @@ func (o *OpenAI) TestConnection(ctx context.Context) error {
 		return o.testConnectionSDK(ctx)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", o.baseURL+"/models", nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+o.apiKey)
-
-	resp, err := o.httpClient().Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return &APIError{Code: resp.StatusCode, Message: string(body)}
-	}
-
-	return nil
+	headers := o.authHeaders()
+	_, err := listOpenAICompatModels(ctx, o.httpClient(), o.baseURL, headers)
+	return err
 }
 
 // ListResources fetches the available models from an OpenAI-compatible API.
@@ -131,49 +130,8 @@ func (o *OpenAI) ListResources(ctx context.Context) ([]Model, error) {
 		return o.listResourcesSDK(ctx)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", o.baseURL+"/models", nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+o.apiKey)
-
-	resp, err := o.httpClient().Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, &APIError{Code: resp.StatusCode, Message: string(body)}
-	}
-
-	var payload struct {
-		Data []struct {
-			ID string `json:"id"`
-		} `json:"data"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return nil, err
-	}
-
-	models := make([]Model, 0, len(payload.Data))
-	for _, item := range payload.Data {
-		if item.ID == "" {
-			continue
-		}
-		models = append(models, Model{
-			ID:   item.ID,
-			Name: item.ID,
-		})
-	}
-
-	sort.Slice(models, func(i, j int) bool {
-		return models[i].ID < models[j].ID
-	})
-
-	return models, nil
+	headers := o.authHeaders()
+	return listOpenAICompatModels(ctx, o.httpClient(), o.baseURL, headers)
 }
 
 // Chat implements streaming chat completion.
@@ -183,75 +141,25 @@ func (o *OpenAI) Chat(ctx context.Context, messages []ProviderMessage, opts Chat
 		return o.chatSDK(ctx, messages, opts)
 	}
 
-	// Convert messages to OpenAI format
-	apiMessages := make([]map[string]interface{}, 0, len(messages))
-	for _, msg := range messages {
-		content := msg.Content
-		if strings.TrimSpace(content) == "" {
-			continue
-		}
-		apiMessages = append(apiMessages, map[string]interface{}{
-			"role":    string(msg.Role),
-			"content": content,
-		})
-	}
-
-	reqBody := map[string]interface{}{
-		"model":    opts.Model,
-		"messages": apiMessages,
-		"stream":   opts.Stream,
-	}
-
-	if opts.Temperature > 0 {
-		reqBody["temperature"] = opts.Temperature
-	}
-	if opts.MaxTokens > 0 {
-		reqBody["max_tokens"] = opts.MaxTokens
-	}
-
-	body, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", o.baseURL+"/chat/completions", bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+o.apiKey)
-
-	resp, err := o.httpClient().Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		return nil, &APIError{Code: resp.StatusCode, Message: string(body)}
-	}
-
-	chunks := make(chan Chunk, 100)
-
-	go func() {
-		defer close(chunks)
-		defer resp.Body.Close()
-
-		if opts.Stream {
-			o.streamResponse(resp.Body, chunks)
-		} else {
-			o.parseResponse(resp.Body, chunks)
-		}
-	}()
-
-	return chunks, nil
+	headers := o.authHeaders()
+	return chatOpenAICompat(ctx, o.httpClient(), o.baseURL, headers, messages, opts)
 }
 
 // usesOpenAISDK decides whether to use the OpenAI SDK.
 func (o *OpenAI) usesOpenAISDK() bool {
 
 	return strings.Contains(strings.ToLower(o.baseURL), "api.openai.com")
+}
+
+// authHeaders returns configured request headers.
+func (o *OpenAI) authHeaders() map[string]string {
+
+	if strings.TrimSpace(o.apiKey) == "" {
+		return nil
+	}
+	return map[string]string{
+		"Authorization": "Bearer " + o.apiKey,
+	}
 }
 
 // normalizeBaseURL ensures the base URL ends with a slash.
@@ -449,84 +357,6 @@ func (o *OpenAI) wrapOpenAIError(err error) error {
 		return &APIError{Code: apiErr.StatusCode, Message: apiErr.Message}
 	}
 	return err
-}
-
-// streamResponse parses SSE responses into chunks.
-func (o *OpenAI) streamResponse(body io.Reader, chunks chan<- Chunk) {
-
-	scanner := bufio.NewScanner(body)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if !strings.HasPrefix(line, "data: ") {
-			continue
-		}
-
-		data := strings.TrimPrefix(line, "data: ")
-		if data == "[DONE]" {
-			chunks <- Chunk{FinishReason: "stop"}
-			return
-		}
-
-		var resp struct {
-			Model   string `json:"model"`
-			Choices []struct {
-				Delta struct {
-					Content string `json:"content"`
-				} `json:"delta"`
-				FinishReason string `json:"finish_reason"`
-			} `json:"choices"`
-			Usage *UsageStats `json:"usage"`
-		}
-
-		if err := json.Unmarshal([]byte(data), &resp); err != nil {
-			continue
-		}
-
-		if len(resp.Choices) > 0 {
-			choice := resp.Choices[0]
-			chunk := Chunk{
-				Content:      choice.Delta.Content,
-				Model:        resp.Model,
-				FinishReason: choice.FinishReason,
-			}
-			if resp.Usage != nil {
-				chunk.Usage = resp.Usage
-			}
-			chunks <- chunk
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		chunks <- Chunk{Error: err}
-	}
-}
-
-// parseResponse parses a non-streaming response into a chunk.
-func (o *OpenAI) parseResponse(body io.Reader, chunks chan<- Chunk) {
-
-	var resp struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-			FinishReason string `json:"finish_reason"`
-		} `json:"choices"`
-		Usage *UsageStats `json:"usage"`
-	}
-
-	if err := json.NewDecoder(body).Decode(&resp); err != nil {
-		chunks <- Chunk{Error: err}
-		return
-	}
-
-	if len(resp.Choices) > 0 {
-		choice := resp.Choices[0]
-		chunks <- Chunk{
-			Content:      choice.Message.Content,
-			FinishReason: choice.FinishReason,
-			Usage:        resp.Usage,
-		}
-	}
 }
 
 // Ensure OpenAI implements Provider.

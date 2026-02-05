@@ -264,18 +264,35 @@ func (o *Orchestrator) ensureProviderConfigured(name string) (settingsports.Prov
 	if o.registry == nil {
 		return nil, fmt.Errorf("provider registry not configured")
 	}
-	if o.secrets == nil {
-		return nil, fmt.Errorf("secret store not configured")
-	}
 	prov := o.registry.Get(name)
 	if prov == nil {
 		return nil, fmt.Errorf("provider not found: %s", name)
 	}
-	key, err := o.secrets.GetProviderKey(name)
-	if err != nil || key == "" {
-		return nil, fmt.Errorf("no API key configured for %s", name)
+
+	fields := prov.CredentialFields()
+	credentials := make(settingsports.ProviderCredentials)
+	for _, field := range fields {
+		if !field.Secret {
+			continue
+		}
+		if o.secrets == nil {
+			if field.Required {
+				return nil, fmt.Errorf("secret store not configured")
+			}
+			continue
+		}
+		value, err := o.secrets.GetProviderSecret(name, field.Name)
+		if err != nil || strings.TrimSpace(value) == "" {
+			if field.Required {
+				return nil, fmt.Errorf("missing required credential: %s", field.Name)
+			}
+			continue
+		}
+		credentials[field.Name] = value
 	}
-	_ = prov.Configure(settingsports.ProviderConfig{APIKey: key})
+	if len(credentials) > 0 {
+		_ = prov.Configure(settingsports.ProviderConfig{Credentials: credentials})
+	}
 	return prov, nil
 }
 

@@ -60,7 +60,7 @@ export class NavRail extends LitElement {
         .rail__button {
             width: 100%;
             border-radius: 12px;
-            padding: 10px 6px;
+            padding: 12px 6px;
             border: 1px solid transparent;
             background: transparent;
             color: var(--color-text-muted, hsla(0, 0%, 100%, 0.45));
@@ -69,9 +69,6 @@ export class NavRail extends LitElement {
             align-items: center;
             gap: 4px;
             cursor: pointer;
-            font-size: 10px;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
             transition: all 120ms ease-out;
         }
 
@@ -202,6 +199,7 @@ export class NavRail extends LitElement {
                         class="rail__button ${this.activeSection === 'chat' ? 'rail__button--active' : ''}"
                         @click=${(event: MouseEvent) => this._handleRailClick(event, 'chat')}
                         title="Chat"
+                        aria-label="Chat"
                     >
                         <span class="rail__icon rail__icon--stroke">
                             <svg viewBox="0 0 24 24">
@@ -213,7 +211,20 @@ export class NavRail extends LitElement {
                                 <path d="M20 16a2 2 0 0 1-2 2H8.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 4 20.286V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z" />
                             </svg>
                         </span>
-                        Chat
+                    </button>
+
+                    <button
+                        class="rail__button ${this.activeSection === 'notifications' ? 'rail__button--active' : ''}"
+                        @click=${(event: MouseEvent) => this._handleRailClick(event, 'notifications')}
+                        title="Notifications"
+                        aria-label="Notifications"
+                    >
+                        <span class="rail__icon rail__icon--stroke">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M6 8a6 6 0 0 1 12 0v5l2 2H4l2-2z" />
+                                <path d="M9 18a3 3 0 0 0 6 0" />
+                            </svg>
+                        </span>
                     </button>
 
 
@@ -226,11 +237,11 @@ export class NavRail extends LitElement {
                         class="rail__button ${this.activeSection === 'settings' ? 'rail__button--active' : ''}"
                         @click=${(event: MouseEvent) => this._handleRailClick(event, 'settings')}
                         title="Workspace Settings"
+                        aria-label="Settings"
                     >
                         <span class="rail__icon rail__icon--stroke">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings-icon lucide-settings"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>
                         </span>
-                        Settings
                     </button>
                 </nav>
 

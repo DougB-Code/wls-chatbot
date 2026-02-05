@@ -249,6 +249,33 @@ export namespace chat {
 
 }
 
+export namespace domain {
+	
+	export class Notification {
+	    id: number;
+	    type: string;
+	    title: string;
+	    message: string;
+	    createdAt: number;
+	    readAt?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Notification(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.type = source["type"];
+	        this.title = source["title"];
+	        this.message = source["message"];
+	        this.createdAt = source["createdAt"];
+	        this.readAt = source["readAt"];
+	    }
+	}
+
+}
+
 export namespace logger {
 	
 	export class LogEntry {
@@ -270,8 +297,51 @@ export namespace logger {
 
 }
 
+export namespace notifications {
+	
+	export class NotificationPayload {
+	    type: string;
+	    title: string;
+	    message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new NotificationPayload(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.type = source["type"];
+	        this.title = source["title"];
+	        this.message = source["message"];
+	    }
+	}
+
+}
+
 export namespace ports {
 	
+	export class CredentialField {
+	    name: string;
+	    label: string;
+	    required: boolean;
+	    secret: boolean;
+	    placeholder?: string;
+	    help?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CredentialField(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.label = source["label"];
+	        this.required = source["required"];
+	        this.secret = source["secret"];
+	        this.placeholder = source["placeholder"];
+	        this.help = source["help"];
+	    }
+	}
 	export class Model {
 	    id: string;
 	    name: string;
@@ -318,6 +388,8 @@ export namespace provider {
 	export class Info {
 	    name: string;
 	    displayName: string;
+	    credentialFields?: ports.CredentialField[];
+	    credentialValues?: Record<string, string>;
 	    models: ports.Model[];
 	    resources: ports.Model[];
 	    isConnected: boolean;
@@ -332,6 +404,8 @@ export namespace provider {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
 	        this.displayName = source["displayName"];
+	        this.credentialFields = this.convertValues(source["credentialFields"], ports.CredentialField);
+	        this.credentialValues = source["credentialValues"];
 	        this.models = this.convertValues(source["models"], ports.Model);
 	        this.resources = this.convertValues(source["resources"], ports.Model);
 	        this.isConnected = source["isConnected"];

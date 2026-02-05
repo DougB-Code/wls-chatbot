@@ -2,10 +2,10 @@
 // internal/features/settings/ports/secret_store.go
 package ports
 
-// SecretStore manages provider API key storage.
+// SecretStore manages provider secret storage.
 type SecretStore interface {
-	SaveProviderKey(providerName, apiKey string) error
-	GetProviderKey(providerName string) (string, error)
-	HasProviderKey(providerName string) bool
-	DeleteProviderKey(providerName string) error
+	SaveProviderSecret(providerName, fieldName, value string) error
+	GetProviderSecret(providerName, fieldName string) (string, error)
+	HasProviderSecret(providerName, fieldName string) bool
+	DeleteProviderSecret(providerName, fieldName string) error
 }

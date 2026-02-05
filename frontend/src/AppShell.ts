@@ -1,5 +1,5 @@
 /**
- * AppShell.ts orchestrates section routing and side-panel behavior.
+ * AppShell.ts orchestrates section routing, header, and side-panel behavior.
  * frontend/src/AppShell.ts
  */
 
@@ -8,9 +8,11 @@ import { customElement, state } from 'lit/decorators.js';
 
 import { SectionId } from './types/shell';
 import './shell/MainLayout';
+import './shell/ShellHeader';
+import './shell/SidePanel';
 import './features/chat';
 import './features/settings';
-import './components/ToastStack';
+import './features/notifications';
 
 import logoUrl from './assets/images/wls-chatbot-logo.png';
 
@@ -27,6 +29,10 @@ const sectionSidePanelSpecs: Record<SectionId, SectionSidePanelSpec> = {
     settings: {
         hasSidePanel: true,
         defaultOpen: true,
+    },
+    notifications: {
+        hasSidePanel: false,
+        defaultOpen: false,
     },
 };
 
@@ -140,10 +146,12 @@ export class AppShell extends LitElement {
                 @section-change=${this._handleSectionChange}
                 @section-dblclick=${this._handleSectionDoubleClick}
             >
+                <wls-shell-header slot="header">
+                    ${this._renderHeader()}
+                </wls-shell-header>
                 ${this._renderSidePanel()}
                 ${this._renderContent()}
             </wls-main-layout>
-            <wls-toast-stack></wls-toast-stack>
         `;
     }
 
@@ -157,9 +165,17 @@ export class AppShell extends LitElement {
 
         switch (this._activeSection) {
             case 'chat':
-                return html`<wls-chat-side-panel slot="side-panel"></wls-chat-side-panel>`;
+                return html`
+                    <wls-shell-side-panel slot="side-panel">
+                        <wls-chat-side-panel></wls-chat-side-panel>
+                    </wls-shell-side-panel>
+                `;
             case 'settings':
-                return html`<wls-settings-side-panel slot="side-panel"></wls-settings-side-panel>`;
+                return html`
+                    <wls-shell-side-panel slot="side-panel">
+                        <wls-settings-side-panel></wls-settings-side-panel>
+                    </wls-shell-side-panel>
+                `;
             default:
                 return nothing;
         }
@@ -175,6 +191,24 @@ export class AppShell extends LitElement {
 
             case 'settings':
                 return html`<wls-settings-view></wls-settings-view>`;
+            case 'notifications':
+                return html`<wls-notifications-view></wls-notifications-view>`;
+            default:
+                return nothing;
+        }
+    }
+
+    /**
+     * choose the header content for the active section.
+     */
+    private _renderHeader() {
+        switch (this._activeSection) {
+            case 'chat':
+                return html`<wls-chat-header></wls-chat-header>`;
+            case 'settings':
+                return html`<wls-settings-header></wls-settings-header>`;
+            case 'notifications':
+                return html`<wls-notifications-header></wls-notifications-header>`;
             default:
                 return nothing;
         }

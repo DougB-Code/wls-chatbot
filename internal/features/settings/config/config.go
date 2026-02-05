@@ -32,6 +32,7 @@ type ProviderConfig struct {
 	DefaultModel    string          `json:"defaultModel"`
 	UpdateFrequency UpdateFrequency `json:"updateFrequency"`
 	Models          []ModelConfig   `json:"models"`
+	Inputs          map[string]string `json:"inputs,omitempty"`
 }
 
 // ModelConfig describes a provider model toggle in configuration.

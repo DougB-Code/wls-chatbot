@@ -10,16 +10,16 @@ func (b *Bridge) GetProviders() []provider.Info {
 	return b.providers.GetProviders()
 }
 
-// ConnectProvider connects and configures a provider with the given API key.
-func (b *Bridge) ConnectProvider(name, apiKey string) (provider.Info, error) {
+// ConnectProvider connects and configures a provider with the given credentials.
+func (b *Bridge) ConnectProvider(name string, credentials provider.ProviderCredentials) (provider.Info, error) {
 
-	return b.providers.ConnectProvider(b.ctxOrBackground(), name, apiKey)
+	return b.providers.ConnectProvider(b.ctxOrBackground(), name, credentials)
 }
 
-// ConfigureProvider updates a provider's API key without full connection flow.
-func (b *Bridge) ConfigureProvider(name, apiKey string) error {
+// ConfigureProvider updates a provider's credentials without full connection flow.
+func (b *Bridge) ConfigureProvider(name string, credentials provider.ProviderCredentials) error {
 
-	return b.providers.ConfigureProvider(name, apiKey)
+	return b.providers.ConfigureProvider(name, credentials)
 }
 
 // DisconnectProvider removes a provider's credentials and resets its state.

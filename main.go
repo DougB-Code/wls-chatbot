@@ -13,6 +13,8 @@ import (
 	wailsadapter "github.com/MadeByDoug/wls-chatbot/internal/core/adapters/wails"
 	"github.com/MadeByDoug/wls-chatbot/internal/features/chat/adapters/chatrepo"
 	chatusecase "github.com/MadeByDoug/wls-chatbot/internal/features/chat/usecase"
+	"github.com/MadeByDoug/wls-chatbot/internal/features/notifications/adapters/notificationrepo"
+	notificationusecase "github.com/MadeByDoug/wls-chatbot/internal/features/notifications/usecase"
 	"github.com/MadeByDoug/wls-chatbot/internal/features/settings/adapters/configstore"
 	provideradapter "github.com/MadeByDoug/wls-chatbot/internal/features/settings/adapters/provider"
 	"github.com/MadeByDoug/wls-chatbot/internal/features/settings/adapters/securestore"
@@ -126,11 +128,15 @@ func setupApp(log zerolog.Logger, cfg config.AppConfig, db *sql.DB) (*wailsadapt
 
 	coreLogger := logger.NewAdapter(log)
 	secrets := securestore.NewKeyringStore(KeyringServiceName)
+	configStore, configErr := configstore.NewSQLiteStore(db)
+	if configErr != nil {
+		return nil, nil, configErr
+	}
 	cache, cacheErr := provideradapter.NewCache(db)
 	if cacheErr != nil {
 		return nil, nil, cacheErr
 	}
-	providerService, registry, err := wiring.BuildProviderService(cfg, cache, secrets, coreLogger)
+	providerService, registry, err := wiring.BuildProviderService(cfg, cache, secrets, configStore, coreLogger)
 
 	chatRepo, repoErr := chatrepo.NewRepository(db)
 	if repoErr != nil {
@@ -138,10 +144,17 @@ func setupApp(log zerolog.Logger, cfg config.AppConfig, db *sql.DB) (*wailsadapt
 	}
 	chatService := chatusecase.NewService(chatRepo)
 
+	notificationRepo, notificationErr := notificationrepo.NewRepository(db)
+	if notificationErr != nil {
+		return nil, nil, notificationErr
+	}
+	notificationService := notificationusecase.NewService(notificationRepo)
+
 	emitter := &wailsadapter.Emitter{}
 	bridgeService := wailsadapter.New(
 		chatusecase.NewOrchestrator(chatService, registry, secrets, emitter),
 		providerusecase.NewOrchestrator(providerService, secrets, emitter),
+		notificationusecase.NewOrchestrator(notificationService),
 		emitter,
 	)
 	logBridge := logger.NewLogBridge(log)

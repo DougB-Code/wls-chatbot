@@ -6,25 +6,28 @@ import (
 	"context"
 
 	"github.com/MadeByDoug/wls-chatbot/internal/features/chat/usecase"
+	"github.com/MadeByDoug/wls-chatbot/internal/features/notifications/usecase"
 	"github.com/MadeByDoug/wls-chatbot/internal/features/settings/usecase"
 )
 
 // Bridge is the main Wails binding struct that exposes backend functionality to the frontend.
 type Bridge struct {
-	chat      *chat.Orchestrator
-	providers *provider.Orchestrator
-	emitter   *Emitter
+	chat          *chat.Orchestrator
+	providers     *provider.Orchestrator
+	notifications *notifications.Orchestrator
+	emitter       *Emitter
 
 	ctx context.Context
 }
 
 // New creates a new Bridge instance.
-func New(chatPolicy *chat.Orchestrator, providerPolicy *provider.Orchestrator, emitter *Emitter) *Bridge {
+func New(chatPolicy *chat.Orchestrator, providerPolicy *provider.Orchestrator, notificationPolicy *notifications.Orchestrator, emitter *Emitter) *Bridge {
 
 	return &Bridge{
-		chat:      chatPolicy,
-		providers: providerPolicy,
-		emitter:   emitter,
+		chat:          chatPolicy,
+		providers:     providerPolicy,
+		notifications: notificationPolicy,
+		emitter:       emitter,
 	}
 }
 

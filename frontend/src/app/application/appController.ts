@@ -10,6 +10,7 @@ import { createNewConversation, deleteConversation, initChatPolicy, purgeConvers
 import { initProviderEvents, refreshProviders, connectProvider, configureProvider, disconnectProvider, refreshProviderResources, setActiveProvider } from '../../features/settings/application/providerPolicy';
 import { initToastEvents } from './toastPolicy';
 import { notifyError } from './notificationPolicy';
+import { refreshNotifications } from '../../features/notifications/application/notificationPolicy';
 
 /**
  * initialize app policies and wire UI event handlers.
@@ -25,7 +26,7 @@ export async function initAppController(root: HTMLElement): Promise<void> {
 async function bootstrapPolicies(): Promise<void> {
     initToastEvents();
     initProviderEvents();
-    const results = await Promise.allSettled([refreshProviders(), initChatPolicy()]);
+    const results = await Promise.allSettled([refreshProviders(), initChatPolicy(), refreshNotifications()]);
 
     for (const result of results) {
         if (result.status === 'rejected') {
@@ -147,17 +148,17 @@ function attachUiHandlers(root: HTMLElement): void {
     });
 
     root.addEventListener('provider-connect', (event: Event) => {
-        const detail = (event as CustomEvent<{ name: string; apiKey: string }>).detail;
-        if (!detail?.name || !detail?.apiKey) return;
-        void connectProvider(detail.name, detail.apiKey).catch((err) => {
+        const detail = (event as CustomEvent<{ name: string; credentials: Record<string, string> }>).detail;
+        if (!detail?.name || !detail?.credentials || Object.keys(detail.credentials).length === 0) return;
+        void connectProvider(detail.name, detail.credentials).catch((err) => {
             notifyError((err as Error).message || `Failed to connect ${detail.name}`, 'Provider connect failed');
         });
     });
 
     root.addEventListener('provider-configure', (event: Event) => {
-        const detail = (event as CustomEvent<{ name: string; apiKey: string }>).detail;
-        if (!detail?.name || !detail?.apiKey) return;
-        void configureProvider(detail.name, detail.apiKey).catch((err) => {
+        const detail = (event as CustomEvent<{ name: string; credentials: Record<string, string> }>).detail;
+        if (!detail?.name || !detail?.credentials || Object.keys(detail.credentials).length === 0) return;
+        void configureProvider(detail.name, detail.credentials).catch((err) => {
             notifyError((err as Error).message || `Failed to update ${detail.name}`, 'Provider update failed');
         });
     });

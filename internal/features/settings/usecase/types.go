@@ -16,11 +16,14 @@ type Model = settingsports.Model
 type Tool = settingsports.Tool
 type Chunk = settingsports.Chunk
 type UsageStats = settingsports.UsageStats
+type CredentialField = settingsports.CredentialField
+type ProviderCredentials = settingsports.ProviderCredentials
 
 type Registry = settingsports.ProviderRegistry
 type Cache = settingsports.ProviderCache
 type CacheSnapshot = settingsports.ProviderCacheSnapshot
 type CacheEntry = settingsports.ProviderCacheEntry
 type SecretStore = settingsports.SecretStore
+type InputsStore = settingsports.ProviderInputsStore
 type Logger = coreports.Logger
 type LogField = coreports.LogField

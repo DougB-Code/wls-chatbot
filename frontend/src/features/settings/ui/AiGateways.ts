@@ -7,6 +7,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { SignalWatcher } from '@lit-labs/preact-signals';
 import { providers, providerBusy } from '../state/providerSignals';
+import type { ProviderInfo } from '../../../types/wails';
 import { settingsSharedStyles } from './settingsStyles';
 
 /**
@@ -82,6 +83,31 @@ export class ConnectionsView extends SignalWatcher(LitElement) {
             gap: 8px;
             flex-wrap: wrap;
             align-items: center;
+        }
+
+        .provider-inputs {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 220px;
+        }
+
+        .provider-input {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .provider-label {
+            font-size: 11px;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: var(--color-text-muted);
+        }
+
+        .provider-help {
+            font-size: 11px;
+            color: var(--color-text-muted);
         }
 
         .provider-status {
@@ -244,39 +270,87 @@ export class ConnectionsView extends SignalWatcher(LitElement) {
     ];
 
     @state()
-    private _apiKeyInputs: Record<string, string> = {};
+    private _credentialInputs: Record<string, Record<string, string>> = {};
 
     @state()
     private _expandedProviders: Record<string, boolean> = {};
 
     /**
-     * update the API key input state for a provider.
+     * update the credential input state for a provider field.
      */
-    private _handleApiKeyInput(name: string, value: string) {
-        this._apiKeyInputs = { ...this._apiKeyInputs, [name]: value };
+    private _handleCredentialInput(providerName: string, fieldName: string, value: string) {
+        const providerInputs = this._credentialInputs[providerName] || {};
+        this._credentialInputs = {
+            ...this._credentialInputs,
+            [providerName]: {
+                ...providerInputs,
+                [fieldName]: value,
+            },
+        };
     }
 
     /**
-     * emit a provider connect/configure action with an API key.
+     * emit a provider connect/configure action with credentials.
      */
-    private _handleConfigureProvider(name: string, action: 'provider-connect' | 'provider-configure') {
-        const apiKey = this._apiKeyInputs[name];
-        if (!apiKey) return;
+    private _handleConfigureProvider(provider: ProviderInfo, action: 'provider-connect' | 'provider-configure') {
+        const credentials = this._collectCredentials(provider);
+        if (Object.keys(credentials).length === 0) return;
 
         this.dispatchEvent(new CustomEvent(action, {
             bubbles: true,
             composed: true,
-            detail: { name, apiKey },
+            detail: { name: provider.name, credentials },
         }));
 
-        this._apiKeyInputs = { ...this._apiKeyInputs, [name]: '' };
+        this._credentialInputs = { ...this._credentialInputs, [provider.name]: {} };
+    }
+
+    /**
+     * collect credential values from user input and stored non-secret values.
+     */
+    private _collectCredentials(provider: ProviderInfo): Record<string, string> {
+        const fields = provider.credentialFields ?? [];
+        const storedValues = provider.credentialValues ?? {};
+        const draftValues = this._credentialInputs[provider.name] ?? {};
+        const credentials: Record<string, string> = {};
+
+        for (const field of fields) {
+            const draftValue = draftValues[field.name];
+            if (draftValue && draftValue.trim() !== '') {
+                credentials[field.name] = draftValue.trim();
+                continue;
+            }
+
+            if (!field.secret) {
+                const storedValue = storedValues[field.name];
+                if (storedValue && storedValue.trim() !== '') {
+                    credentials[field.name] = storedValue.trim();
+                }
+            }
+        }
+
+        return credentials;
+    }
+
+    /**
+     * resolve the displayed input value for a provider field.
+     */
+    private _resolveCredentialValue(provider: ProviderInfo, field: { name: string; secret?: boolean }): string {
+        const draftValue = this._credentialInputs[provider.name]?.[field.name];
+        if (draftValue !== undefined) {
+            return draftValue;
+        }
+        if (!field.secret) {
+            return provider.credentialValues?.[field.name] ?? '';
+        }
+        return '';
     }
 
     /**
      * request a provider disconnect after user confirmation.
      */
     private _handleDisconnectProvider(name: string) {
-        if (!confirm('Are you sure you want to disconnect this provider? This will remove the API key from your secure storage.')) {
+        if (!confirm('Are you sure you want to disconnect this provider? This will remove stored credentials.')) {
             return;
         }
 
@@ -316,7 +390,7 @@ export class ConnectionsView extends SignalWatcher(LitElement) {
             <div class="settings">
                 <header class="settings__header">
                     <h1 class="settings__title">Provider Connections</h1>
-                    <p class="settings__subtitle">Configure your AI provider API keys to enable chat.</p>
+                    <p class="settings__subtitle">Configure your AI provider credentials to enable chat.</p>
                 </header>
 
                 <div class="card">
@@ -333,6 +407,7 @@ export class ConnectionsView extends SignalWatcher(LitElement) {
                 : (provider.isConnected ? 'No resources found' : 'Connect to load');
             const modelCount = hasResources ? resources.length : provider.models.length;
             const isBusy = !!providerBusy.value[provider.name];
+            const fields = provider.credentialFields ?? [];
 
             return html`
                                 <div class="provider-item ${provider.isActive ? 'active' : ''}">
@@ -342,32 +417,39 @@ export class ConnectionsView extends SignalWatcher(LitElement) {
                                             <span class="provider-models">${modelCount} models</span>
                                         </div>
                                         <div class="provider-actions">
+                                            ${fields.length > 0 ? html`
+                                                <div class="provider-inputs">
+                                                    ${fields.map((field) => html`
+                                                        <label class="provider-input">
+                                                            <span class="provider-label">${field.label}${field.required ? ' *' : ''}</span>
+                                                            <input
+                                                                class="input"
+                                                                type=${field.secret ? 'password' : 'text'}
+                                                                placeholder=${field.placeholder || field.label}
+                                                                .value=${this._resolveCredentialValue(provider, field)}
+                                                                @input=${(e: Event) => this._handleCredentialInput(
+                                                                    provider.name,
+                                                                    field.name,
+                                                                    (e.target as HTMLInputElement).value
+                                                                )}
+                                                            />
+                                                            ${field.help ? html`<span class="provider-help">${field.help}</span>` : nothing}
+                                                        </label>
+                                                    `)}
+                                                </div>
+                                            ` : nothing}
                                             ${!provider.isConnected ? html`
-                                                <input
-                                                    class="input"
-                                                    type="password"
-                                                    placeholder="API Key"
-                                                    .value=${this._apiKeyInputs[provider.name] || ''}
-                                                    @input=${(e: Event) => this._handleApiKeyInput(provider.name, (e.target as HTMLInputElement).value)}
-                                                />
                                                 <button
                                                     class="btn btn--primary"
-                                                    @click=${() => this._handleConfigureProvider(provider.name, 'provider-connect')}
+                                                    @click=${() => this._handleConfigureProvider(provider, 'provider-connect')}
                                                     ?disabled=${isBusy}
                                                 >
                                                     ${isBusy ? 'Connecting...' : 'Connect'}
                                                 </button>
                                             ` : html`
-                                                <input
-                                                    class="input"
-                                                    type="password"
-                                                    placeholder="Update API Key"
-                                                    .value=${this._apiKeyInputs[provider.name] || ''}
-                                                    @input=${(e: Event) => this._handleApiKeyInput(provider.name, (e.target as HTMLInputElement).value)}
-                                                />
                                                  <button
                                                     class="btn"
-                                                    @click=${() => this._handleConfigureProvider(provider.name, 'provider-configure')}
+                                                    @click=${() => this._handleConfigureProvider(provider, 'provider-configure')}
                                                     ?disabled=${isBusy}
                                                 >
                                                     ${isBusy ? 'Updating...' : 'Update'}
@@ -384,7 +466,7 @@ export class ConnectionsView extends SignalWatcher(LitElement) {
                                                     class="btn btn--danger"
                                                     @click=${() => this._handleDisconnectProvider(provider.name)}
                                                     ?disabled=${isBusy}
-                                                    title="Disconnect and remove API key"
+                                                    title="Disconnect and remove stored credentials"
                                                 >
                                                     Disconnect
                                                 </button>

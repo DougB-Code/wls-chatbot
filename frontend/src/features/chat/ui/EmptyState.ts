@@ -117,13 +117,8 @@ export class EmptyState extends LitElement {
      * render the empty state content and suggestion buttons.
      */
     render() {
-        const providerText = this.provider ? `Connected to ${this.provider}` : 'Connect a provider to start chatting.';
         return html`
             <img class="icon" src=${splashUrl} alt="WLS ChatBot" />
-            <h2 class="title">Start a new conversation</h2>
-            <p class="description">
-                ${providerText}
-            </p>
             <div class="suggestions">
                 ${this._suggestions.map((suggestion) => html`
                     <button class="suggestion" @click=${() => this._handleSuggestionClick(suggestion)}>

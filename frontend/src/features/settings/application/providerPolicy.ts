@@ -45,11 +45,11 @@ export async function refreshProviders(): Promise<void> {
 /**
  * connect a provider and refresh provider state.
  */
-export async function connectProvider(name: string, apiKey: string): Promise<void> {
+export async function connectProvider(name: string, credentials: Record<string, string>): Promise<void> {
     setProviderBusy(name, true);
     setProviderError(null);
     try {
-        await providerTransport.connectProvider(name, apiKey);
+        await providerTransport.connectProvider(name, credentials);
         await refreshProviders();
     } catch (err) {
         setProviderError((err as Error).message || `Failed to connect ${name}`);
@@ -62,11 +62,11 @@ export async function connectProvider(name: string, apiKey: string): Promise<voi
 /**
  * update provider credentials and refresh provider state.
  */
-export async function configureProvider(name: string, apiKey: string): Promise<void> {
+export async function configureProvider(name: string, credentials: Record<string, string>): Promise<void> {
     setProviderBusy(name, true);
     setProviderError(null);
     try {
-        await providerTransport.configureProvider(name, apiKey);
+        await providerTransport.configureProvider(name, credentials);
         await refreshProviders();
     } catch (err) {
         setProviderError((err as Error).message || `Failed to update ${name}`);

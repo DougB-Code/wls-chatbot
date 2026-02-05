@@ -23,10 +23,10 @@ export async function getProviders(): Promise<ProviderInfo[]> {
 }
 
 /**
- * connect a provider with the given API key.
+ * connect a provider with the given credentials.
  */
-export async function connectProvider(name: string, apiKey: string): Promise<ProviderInfo> {
-    return ConnectProvider(name, apiKey);
+export async function connectProvider(name: string, credentials: Record<string, string>): Promise<ProviderInfo> {
+    return ConnectProvider(name, credentials);
 }
 
 /**
@@ -39,8 +39,8 @@ export async function disconnectProvider(name: string): Promise<void> {
 /**
  * update provider credentials without changing active state.
  */
-export async function configureProvider(name: string, apiKey: string): Promise<void> {
-    await ConfigureProvider(name, apiKey);
+export async function configureProvider(name: string, credentials: Record<string, string>): Promise<void> {
+    await ConfigureProvider(name, credentials);
 }
 
 /**

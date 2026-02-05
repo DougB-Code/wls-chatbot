@@ -9,8 +9,8 @@ func TestDefaultConfigProvidesProviders(t *testing.T) {
 
 	cfg := DefaultConfig()
 
-	if len(cfg.Providers) != 2 {
-		t.Fatalf("expected 2 providers, got %d", len(cfg.Providers))
+	if len(cfg.Providers) != 6 {
+		t.Fatalf("expected 6 providers, got %d", len(cfg.Providers))
 	}
 
 	openai := cfg.Providers[0]
@@ -21,11 +21,40 @@ func TestDefaultConfigProvidesProviders(t *testing.T) {
 		t.Fatalf("expected openai baseUrl to be set")
 	}
 
-	gemini := cfg.Providers[1]
+	grok := cfg.Providers[1]
+	if grok.Type != "openai" || grok.Name != "grok" {
+		t.Fatalf("unexpected grok provider: %+v", grok)
+	}
+	if grok.BaseURL == "" {
+		t.Fatalf("expected grok baseUrl to be set")
+	}
+
+	mistral := cfg.Providers[2]
+	if mistral.Type != "openai" || mistral.Name != "mistral" {
+		t.Fatalf("unexpected mistral provider: %+v", mistral)
+	}
+	if mistral.BaseURL == "" {
+		t.Fatalf("expected mistral baseUrl to be set")
+	}
+
+	anthropic := cfg.Providers[3]
+	if anthropic.Type != "anthropic" || anthropic.Name != "anthropic" {
+		t.Fatalf("unexpected anthropic provider: %+v", anthropic)
+	}
+	if anthropic.BaseURL == "" {
+		t.Fatalf("expected anthropic baseUrl to be set")
+	}
+
+	gemini := cfg.Providers[4]
 	if gemini.Type != "gemini" || gemini.Name != "gemini" {
 		t.Fatalf("unexpected gemini provider: %+v", gemini)
 	}
 	if gemini.BaseURL == "" {
 		t.Fatalf("expected gemini baseUrl to be set")
+	}
+
+	cloudflare := cfg.Providers[5]
+	if cloudflare.Type != "cloudflare" || cloudflare.Name != "cloudflare" {
+		t.Fatalf("unexpected cloudflare provider: %+v", cloudflare)
 	}
 }

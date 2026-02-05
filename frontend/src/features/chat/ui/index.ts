@@ -5,6 +5,7 @@
 
 export { ChatView } from './ChatView';
 export { ChatSidePanel } from './ChatSidePanel';
+export { ChatHeader } from './ChatHeader';
 export { MessageBubble } from './MessageBubble';
 export { Composer } from './Composer';
 export { EmptyState } from './EmptyState';

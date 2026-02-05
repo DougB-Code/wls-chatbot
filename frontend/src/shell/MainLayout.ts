@@ -1,5 +1,5 @@
 /**
- * MainLayout.ts renders shell grid regions for nav, side panel, and workspace.
+ * MainLayout.ts renders shell grid regions for nav, side panel, header, and workspace.
  * frontend/src/shell/MainLayout.ts
  */
 
@@ -9,7 +9,7 @@ import './NavRail';
 import { SectionId } from '../types/shell';
 
 /**
- * render the nav rail and workspace slot layout.
+ * render the nav rail, header slot, and workspace layout.
  */
 @customElement('wls-main-layout')
 export class MainLayout extends LitElement {
@@ -64,6 +64,18 @@ export class MainLayout extends LitElement {
             min-height: 0;
             overflow: hidden;
         }
+
+        .workspace__header {
+            flex-shrink: 0;
+        }
+
+        .workspace__content {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
     `;
 
     @property()
@@ -114,9 +126,14 @@ export class MainLayout extends LitElement {
                         <slot name="side-panel"></slot>
                     </div>
                 </aside>
-                
+
                 <main class="workspace">
-                    <slot></slot>
+                    <div class="workspace__header">
+                        <slot name="header"></slot>
+                    </div>
+                    <div class="workspace__content">
+                        <slot></slot>
+                    </div>
                 </main>
             </div>
         `;

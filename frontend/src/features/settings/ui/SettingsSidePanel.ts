@@ -17,14 +17,11 @@ export class SettingsSidePanel extends LitElement {
             height: 100%;
         }
 
-        .panel {
-            height: 100%;
-            min-height: 0;
-            box-sizing: border-box;
-            padding: 20px 16px;
+        .panel-content {
             display: flex;
             flex-direction: column;
             gap: 20px;
+            min-height: 0;
         }
 
         .title {
@@ -76,7 +73,7 @@ export class SettingsSidePanel extends LitElement {
      */
     render() {
         return html`
-            <aside class="panel">
+            <div class="panel-content">
                 <div>
                     <h2 class="title">Settings Panel</h2>
                     <p class="subtitle">Configuration sections for this workspace.</p>
@@ -92,7 +89,7 @@ export class SettingsSidePanel extends LitElement {
                         <p class="section-item-description">Additional workspace settings will appear here.</p>
                     </li>
                 </ul>
-            </aside>
+            </div>
         `;
     }
 }

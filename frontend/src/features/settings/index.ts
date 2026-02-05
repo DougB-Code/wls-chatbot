@@ -5,3 +5,4 @@
 
 export * from './ui/SettingsView';
 export * from './ui/SettingsSidePanel';
+export * from './ui/SettingsHeader';

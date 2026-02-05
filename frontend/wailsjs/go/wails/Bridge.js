@@ -14,6 +14,10 @@ export function CreateConversation(arg1, arg2) {
   return window['go']['wails']['Bridge']['CreateConversation'](arg1, arg2);
 }
 
+export function CreateNotification(arg1) {
+  return window['go']['wails']['Bridge']['CreateNotification'](arg1);
+}
+
 export function DeleteConversation(arg1) {
   return window['go']['wails']['Bridge']['DeleteConversation'](arg1);
 }
@@ -44,6 +48,10 @@ export function ListConversations() {
 
 export function ListDeletedConversations() {
   return window['go']['wails']['Bridge']['ListDeletedConversations']();
+}
+
+export function ListNotifications() {
+  return window['go']['wails']['Bridge']['ListNotifications']();
 }
 
 export function PurgeConversation(arg1) {

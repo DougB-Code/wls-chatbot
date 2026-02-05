@@ -57,9 +57,19 @@ export class ProviderSelector extends LitElement {
             color: hsl(160, 70%, 45%);
         }
 
+        .pill.grok {
+            background: hsla(5, 75%, 55%, 0.15);
+            color: hsl(5, 75%, 55%);
+        }
+
         .pill.groq {
             background: hsla(25, 95%, 55%, 0.15);
             color: hsl(25, 95%, 55%);
+        }
+
+        .pill.mistral {
+            background: hsla(210, 85%, 58%, 0.16);
+            color: hsl(210, 85%, 58%);
         }
 
         .pill.gemini {

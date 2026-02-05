@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/MadeByDoug/wls-chatbot/internal/features/settings/config"
+	"github.com/MadeByDoug/wls-chatbot/internal/features/settings/ports"
 )
 
 const appConfigSchema = `
@@ -40,6 +41,7 @@ func NewSQLiteStore(db *sql.DB) (*SQLiteStore, error) {
 }
 
 var _ config.Store = (*SQLiteStore)(nil)
+var _ ports.ProviderInputsStore = (*SQLiteStore)(nil)
 
 // Load returns the stored application configuration.
 func (s *SQLiteStore) Load() (config.AppConfig, error) {
@@ -93,4 +95,58 @@ func (s *SQLiteStore) Save(cfg config.AppConfig) error {
 	}
 
 	return nil
+}
+
+// LoadProviderInputs returns stored input values for a provider.
+func (s *SQLiteStore) LoadProviderInputs(providerName string) (map[string]string, error) {
+
+	cfg, err := s.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range cfg.Providers {
+		if cfg.Providers[i].Name == providerName {
+			return cloneInputs(cfg.Providers[i].Inputs), nil
+		}
+	}
+
+	return nil, fmt.Errorf("config store: provider not found: %s", providerName)
+}
+
+// SaveProviderInputs persists input values for a provider.
+func (s *SQLiteStore) SaveProviderInputs(providerName string, inputs map[string]string) error {
+
+	cfg, err := s.Load()
+	if err != nil {
+		return err
+	}
+
+	found := false
+	for i := range cfg.Providers {
+		if cfg.Providers[i].Name == providerName {
+			cfg.Providers[i].Inputs = cloneInputs(inputs)
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("config store: provider not found: %s", providerName)
+	}
+
+	return s.Save(cfg)
+}
+
+// cloneInputs copies provider input values into a new map.
+func cloneInputs(inputs map[string]string) map[string]string {
+
+	if len(inputs) == 0 {
+		return nil
+	}
+	clone := make(map[string]string, len(inputs))
+	for key, value := range inputs {
+		clone[key] = value
+	}
+	return clone
 }
