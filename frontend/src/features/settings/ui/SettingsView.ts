@@ -6,7 +6,6 @@
 import { LitElement, html, css } from 'lit';
 import { customElement } from 'lit/decorators.js';
 import './AiGateways';
-import './CatalogRoles';
 import { settingsSharedStyles } from './settingsStyles';
 
 /**
@@ -45,7 +44,6 @@ export class SettingsView extends LitElement {
         return html`
             <div class="settings-panel">
                 <wls-connections-view></wls-connections-view>
-                <wls-catalog-roles></wls-catalog-roles>
             </div>
         `;
     }

@@ -504,23 +504,25 @@ func (s *Service) List() []Info {
 
 	info := make([]Info, len(providers))
 	for i, p := range providers {
-		s.refreshResourcesIfStale(p.Name())
+		// Trigger background refresh without blocking
+		go s.refreshResourcesIfStale(p.Name())
 		fields := s.providerCredentialFields(p)
-		inputs := s.loadProviderInputs(p.Name())
+		// Skip loading inputs during list to avoid blocking - credentials are only needed on connect/configure
 		info[i] = Info{
 			Name:             p.Name(),
 			DisplayName:      p.DisplayName(),
 			CredentialFields: fields,
-			CredentialValues: filterCredentialValues(fields, inputs, false),
+			CredentialValues: nil, // Load on demand, not during list
 			Models:           p.Models(),
 			Resources:        s.GetResources(p.Name()),
-			IsConnected:      s.isProviderConfigured(p.Name(), fields),
+			IsConnected:      s.hasSuccessfulStatus(p.Name()), // Use cached status instead of blocking keyring check
 			IsActive:         active != nil && active.Name() == p.Name(),
 			Status:           s.GetStatus(p.Name()),
 		}
 	}
 	return info
 }
+
 
 // Connect configures, validates, and persists a provider connection.
 func (s *Service) Connect(ctx context.Context, name string, credentials ProviderCredentials) (Info, error) {
@@ -921,6 +923,16 @@ func (s *Service) GetStatus(name string) *Status {
 	result := status
 	return &result
 }
+
+// hasSuccessfulStatus returns true if the provider has a cached successful status.
+func (s *Service) hasSuccessfulStatus(name string) bool {
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	status, ok := s.status[name]
+	return ok && status.OK
+}
+
 
 // SetStatus records a provider status check result.
 func (s *Service) SetStatus(name string, ok bool, message string) {

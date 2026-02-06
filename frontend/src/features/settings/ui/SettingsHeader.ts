@@ -36,7 +36,7 @@ export class SettingsHeader extends LitElement {
      */
     render() {
         return html`
-            <h1 class="title">Settings</h1>
+            <h1 class="title">AI Providers and Connections</h1>
             <p class="subtitle">Manage provider connections and workspace defaults.</p>
         `;
     }

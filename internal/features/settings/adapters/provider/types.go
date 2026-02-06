@@ -34,4 +34,6 @@ const (
 	CredentialGatewayID = ports.CredentialGatewayID
 	CredentialToken     = ports.CredentialToken
 	CredentialCloudflareToken = ports.CredentialCloudflareToken
+	CredentialOpenRouterReferer = ports.CredentialOpenRouterReferer
+	CredentialOpenRouterTitle   = ports.CredentialOpenRouterTitle
 )

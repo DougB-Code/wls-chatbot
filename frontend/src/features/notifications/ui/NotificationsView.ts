@@ -3,7 +3,7 @@
  * frontend/src/features/notifications/ui/NotificationsView.ts
  */
 
-import { LitElement, html, css } from 'lit';
+import { LitElement, html, css, nothing } from 'lit';
 import { customElement } from 'lit/decorators.js';
 import { SignalWatcher } from '@lit-labs/preact-signals';
 
@@ -123,6 +123,20 @@ export class NotificationsView extends SignalWatcher(LitElement) {
             font-size: 14px;
             font-weight: 600;
             color: var(--color-text-primary, hsla(0, 0%, 100%, 0.92));
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .notification__count {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--color-text-secondary, hsla(0, 0%, 100%, 0.68));
         }
 
         .notification__timestamp {
@@ -172,6 +186,7 @@ export class NotificationsView extends SignalWatcher(LitElement) {
             `;
         }
 
+        const grouped = this._groupNotifications(list);
         return html`
             <div class="notifications">
                 <div class="notifications__header">
@@ -179,20 +194,46 @@ export class NotificationsView extends SignalWatcher(LitElement) {
                         Clear All
                     </button>
                 </div>
-                ${list.map((notification) => this._renderNotification(notification))}
+                ${grouped.map((group) => this._renderNotification(group))}
             </div>
         `;
     }
 
     /**
+     * group duplicate notifications by title/message/type.
+     */
+    private _groupNotifications(list: Notification[]) {
+        const groups = new Map<string, { notification: Notification; count: number; ids: number[] }>();
+        for (const notification of list) {
+            const title = notification.title || (notification.type === 'error' ? 'Error' : 'Notification');
+            const key = `${notification.type}::${title}::${notification.message}`;
+            const group = groups.get(key);
+            if (group) {
+                group.count += 1;
+                group.ids.push(notification.id);
+                if (notification.createdAt > group.notification.createdAt) {
+                    group.notification = notification;
+                }
+            } else {
+                groups.set(key, { notification, count: 1, ids: [notification.id] });
+            }
+        }
+        return Array.from(groups.values());
+    }
+
+    /**
      * render a single notification card.
      */
-    private _renderNotification(notification: Notification) {
+    private _renderNotification(group: { notification: Notification; count: number; ids: number[] }) {
+        const { notification, count, ids } = group;
         const title = notification.title || (notification.type === 'error' ? 'Error' : 'Notification');
         return html`
             <article class="notification ${notification.type === 'error' ? 'notification--error' : ''}">
                 <div class="notification__header">
-                    <h2 class="notification__title">${title}</h2>
+                    <h2 class="notification__title">
+                        ${title}
+                        ${count > 1 ? html`<span class="notification__count">x${count}</span>` : nothing}
+                    </h2>
                     <div class="notification__actions">
                         <span class="notification__timestamp">${this._formatTimestamp(notification.createdAt)}</span>
                         <button
@@ -200,7 +241,7 @@ export class NotificationsView extends SignalWatcher(LitElement) {
                             type="button"
                             aria-label="Delete notification"
                             title="Delete notification"
-                            @click=${() => this._handleDelete(notification.id)}
+                            @click=${() => this._handleDeleteGroup(ids)}
                         >
                             <svg viewBox="0 0 24 24" aria-hidden="true">
                                 <path d="M18 6L6 18" />
@@ -217,8 +258,10 @@ export class NotificationsView extends SignalWatcher(LitElement) {
     /**
      * delete a notification by id.
      */
-    private _handleDelete(id: number) {
-        void deleteNotification(id).catch(() => undefined);
+    private _handleDeleteGroup(ids: number[]) {
+        for (const id of ids) {
+            void deleteNotification(id).catch(() => undefined);
+        }
     }
 
     /**

@@ -131,10 +131,6 @@ func setupApp(log zerolog.Logger, cfg config.AppConfig, db *sql.DB) (*wailsadapt
 
 	coreLogger := logger.NewAdapter(log)
 	secrets := securestore.NewKeyringStore(KeyringServiceName)
-	configStore, configErr := configstore.NewSQLiteStore(db)
-	if configErr != nil {
-		return nil, nil, configErr
-	}
 	cache, cacheErr := provideradapter.NewCache(db)
 	if cacheErr != nil {
 		return nil, nil, cacheErr

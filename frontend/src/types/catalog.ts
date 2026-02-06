@@ -22,6 +22,8 @@ export interface ModelSummary {
     modelId: string;
     displayName: string;
     availabilityState: string;
+    contextWindow: number;
+    costTier: string;
     supportsStreaming: boolean;
     supportsToolCalling: boolean;
     supportsStructuredOutput: boolean;

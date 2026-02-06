@@ -9,6 +9,7 @@ import { effectiveModelId } from '../../features/chat/application/chatSelectors'
 import { createNewConversation, deleteConversation, initChatPolicy, purgeConversation, restoreConversation, selectConversation, sendMessage, setConversationModel, setConversationProvider, stopStream } from '../../features/chat/application/chatPolicy';
 import { initProviderEvents, refreshProviders, connectProvider, configureProvider, disconnectProvider, refreshProviderResources, setActiveProvider } from '../../features/settings/application/providerPolicy';
 import { initCatalogEvents, refreshCatalogOverview, refreshCatalogEndpoint, testCatalogEndpoint, saveCatalogRole, deleteCatalogRole, assignCatalogRole, unassignCatalogRole } from '../../features/settings/application/catalogPolicy';
+import { catalogOverview } from '../../features/settings/state/catalogSignals';
 import { initToastEvents } from './toastPolicy';
 import { notifyError } from './notificationPolicy';
 import { refreshNotifications } from '../../features/notifications/application/notificationPolicy';
@@ -29,13 +30,18 @@ async function bootstrapPolicies(): Promise<void> {
     initToastEvents();
     initProviderEvents();
     initCatalogEvents();
-    const results = await Promise.allSettled([refreshProviders(), refreshCatalogOverview(), initChatPolicy(), refreshNotifications()]);
-
-    for (const result of results) {
-        if (result.status === 'rejected') {
-            notifyError((result.reason as Error)?.message || 'Failed to initialize the app', 'Startup failed');
-        }
-    }
+    void refreshProviders().catch((err) => {
+        notifyError((err as Error).message || 'Failed to load providers', 'Startup failed');
+    });
+    void refreshCatalogOverview().catch((err) => {
+        notifyError((err as Error).message || 'Failed to load catalog', 'Startup failed');
+    });
+    void initChatPolicy().catch((err) => {
+        notifyError((err as Error).message || 'Failed to initialize chat', 'Startup failed');
+    });
+    void refreshNotifications().catch((err) => {
+        notifyError((err as Error).message || 'Failed to load notifications', 'Startup failed');
+    });
 }
 
 /**
@@ -177,7 +183,19 @@ function attachUiHandlers(root: HTMLElement): void {
     root.addEventListener('provider-refresh', (event: Event) => {
         const detail = (event as CustomEvent<{ name: string }>).detail;
         if (!detail?.name) return;
-        void refreshProviderResources(detail.name).catch((err) => {
+        void (async () => {
+            await refreshProviderResources(detail.name);
+            const endpointIds = (catalogOverview.value?.endpoints ?? [])
+                .filter((endpoint) => endpoint.providerName === detail.name)
+                .map((endpoint) => endpoint.id);
+            if (endpointIds.length === 0) {
+                await refreshCatalogOverview();
+                return;
+            }
+            for (const endpointId of endpointIds) {
+                await refreshCatalogEndpoint(endpointId);
+            }
+        })().catch((err) => {
             notifyError((err as Error).message || `Failed to refresh ${detail.name}`, 'Provider refresh failed');
         });
     });

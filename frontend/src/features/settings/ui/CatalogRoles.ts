@@ -318,26 +318,6 @@ export class CatalogRoles extends SignalWatcher(LitElement) {
                             @input=${(event: Event) => this._handleConstraintInput('maxCostTier', (event.target as HTMLInputElement).value)}
                         />
                     </label>
-                    <label>
-                        Max latency tier
-                        <input
-                            class="input"
-                            type="text"
-                            placeholder="fast | standard | slow"
-                            .value=${this._newRole.constraints.maxLatencyTier ?? ''}
-                            @input=${(event: Event) => this._handleConstraintInput('maxLatencyTier', (event.target as HTMLInputElement).value)}
-                        />
-                    </label>
-                    <label>
-                        Min reliability tier
-                        <input
-                            class="input"
-                            type="text"
-                            placeholder="stable | preview"
-                            .value=${this._newRole.constraints.minReliabilityTier ?? ''}
-                            @input=${(event: Event) => this._handleConstraintInput('minReliabilityTier', (event.target as HTMLInputElement).value)}
-                        />
-                    </label>
                     <div>
                         <span class="provider-label">Input modalities</span>
                         <div class="checkbox-group">

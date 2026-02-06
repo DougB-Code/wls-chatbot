@@ -26,9 +26,11 @@ func NewOrchestrator(service *Service, secrets SecretStore, emitter coreports.Em
 // GetProviders returns all available providers with their status.
 func (o *Orchestrator) GetProviders() []Info {
 
-	o.ensureActiveProvider()
+	// Run provider activation in background to avoid blocking on keyring access
+	go o.ensureActiveProvider()
 	return o.providers.List()
 }
+
 
 // ConnectProvider connects and configures a provider with the given credentials.
 func (o *Orchestrator) ConnectProvider(ctx context.Context, name string, credentials ProviderCredentials) (Info, error) {

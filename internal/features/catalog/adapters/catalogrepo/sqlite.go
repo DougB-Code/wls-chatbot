@@ -306,7 +306,10 @@ func (r *Repository) EnsureProvider(ctx context.Context, provider ProviderRecord
 
 	row := r.db.QueryRowContext(ctx, `SELECT id, name, display_name, adapter_type, trust_mode, base_url, last_test_at, last_test_ok, last_error, last_discovery_at FROM catalog_providers WHERE name = ?`, provider.Name)
 	var record ProviderRecord
+	var lastTestAt sql.NullInt64
 	var lastTestOK sql.NullInt64
+	var lastError sql.NullString
+	var lastDiscoveryAt sql.NullInt64
 	if err := row.Scan(
 		&record.ID,
 		&record.Name,
@@ -314,14 +317,23 @@ func (r *Repository) EnsureProvider(ctx context.Context, provider ProviderRecord
 		&record.AdapterType,
 		&record.TrustMode,
 		&record.BaseURL,
-		&record.LastTestAt,
+		&lastTestAt,
 		&lastTestOK,
-		&record.LastError,
-		&record.LastDiscoveryAt,
+		&lastError,
+		&lastDiscoveryAt,
 	); err != nil {
 		return ProviderRecord{}, fmt.Errorf("catalog repo: ensure provider load: %w", err)
 	}
+	if lastTestAt.Valid {
+		record.LastTestAt = lastTestAt.Int64
+	}
 	record.LastTestOK = lastTestOK.Valid && lastTestOK.Int64 == 1
+	if lastError.Valid {
+		record.LastError = lastError.String
+	}
+	if lastDiscoveryAt.Valid {
+		record.LastDiscoveryAt = lastDiscoveryAt.Int64
+	}
 	return record, nil
 }
 
@@ -334,7 +346,10 @@ func (r *Repository) GetProviderByName(ctx context.Context, name string) (Provid
 
 	row := r.db.QueryRowContext(ctx, `SELECT id, name, display_name, adapter_type, trust_mode, base_url, last_test_at, last_test_ok, last_error, last_discovery_at FROM catalog_providers WHERE name = ?`, name)
 	var record ProviderRecord
+	var lastTestAt sql.NullInt64
 	var lastTestOK sql.NullInt64
+	var lastError sql.NullString
+	var lastDiscoveryAt sql.NullInt64
 	err := row.Scan(
 		&record.ID,
 		&record.Name,
@@ -342,10 +357,10 @@ func (r *Repository) GetProviderByName(ctx context.Context, name string) (Provid
 		&record.AdapterType,
 		&record.TrustMode,
 		&record.BaseURL,
-		&record.LastTestAt,
+		&lastTestAt,
 		&lastTestOK,
-		&record.LastError,
-		&record.LastDiscoveryAt,
+		&lastError,
+		&lastDiscoveryAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ProviderRecord{}, nil
@@ -353,7 +368,16 @@ func (r *Repository) GetProviderByName(ctx context.Context, name string) (Provid
 	if err != nil {
 		return ProviderRecord{}, fmt.Errorf("catalog repo: get provider: %w", err)
 	}
+	if lastTestAt.Valid {
+		record.LastTestAt = lastTestAt.Int64
+	}
 	record.LastTestOK = lastTestOK.Valid && lastTestOK.Int64 == 1
+	if lastError.Valid {
+		record.LastError = lastError.String
+	}
+	if lastDiscoveryAt.Valid {
+		record.LastDiscoveryAt = lastDiscoveryAt.Int64
+	}
 	return record, nil
 }
 
@@ -373,7 +397,10 @@ func (r *Repository) ListProviders(ctx context.Context) ([]ProviderRecord, error
 	var providers []ProviderRecord
 	for rows.Next() {
 		var record ProviderRecord
+		var lastTestAt sql.NullInt64
 		var lastTestOK sql.NullInt64
+		var lastError sql.NullString
+		var lastDiscoveryAt sql.NullInt64
 		if err := rows.Scan(
 			&record.ID,
 			&record.Name,
@@ -381,14 +408,23 @@ func (r *Repository) ListProviders(ctx context.Context) ([]ProviderRecord, error
 			&record.AdapterType,
 			&record.TrustMode,
 			&record.BaseURL,
-			&record.LastTestAt,
+			&lastTestAt,
 			&lastTestOK,
-			&record.LastError,
-			&record.LastDiscoveryAt,
+			&lastError,
+			&lastDiscoveryAt,
 		); err != nil {
 			return nil, fmt.Errorf("catalog repo: list providers scan: %w", err)
 		}
+		if lastTestAt.Valid {
+			record.LastTestAt = lastTestAt.Int64
+		}
 		record.LastTestOK = lastTestOK.Valid && lastTestOK.Int64 == 1
+		if lastError.Valid {
+			record.LastError = lastError.String
+		}
+		if lastDiscoveryAt.Valid {
+			record.LastDiscoveryAt = lastDiscoveryAt.Int64
+		}
 		providers = append(providers, record)
 	}
 	if err := rows.Err(); err != nil {
@@ -555,7 +591,9 @@ func (r *Repository) UpsertEndpoint(ctx context.Context, endpoint EndpointRecord
 
 	row := r.db.QueryRowContext(ctx, `SELECT id, provider_id, display_name, adapter_type, base_url, route_kind, origin_provider, origin_route_label, auth_json, last_test_at, last_test_ok, last_error FROM catalog_endpoints WHERE provider_id = ? AND route_kind = ? AND origin_provider = ? AND origin_route_label = ? AND base_url = ?`, endpoint.ProviderID, endpoint.RouteKind, endpoint.OriginProvider, endpoint.OriginRouteLabel, endpoint.BaseURL)
 	var record EndpointRecord
+	var lastTestAt sql.NullInt64
 	var lastTestOK sql.NullInt64
+	var lastError sql.NullString
 	if err := row.Scan(
 		&record.ID,
 		&record.ProviderID,
@@ -566,13 +604,19 @@ func (r *Repository) UpsertEndpoint(ctx context.Context, endpoint EndpointRecord
 		&record.OriginProvider,
 		&record.OriginRouteLabel,
 		&record.AuthJSON,
-		&record.LastTestAt,
+		&lastTestAt,
 		&lastTestOK,
-		&record.LastError,
+		&lastError,
 	); err != nil {
 		return EndpointRecord{}, fmt.Errorf("catalog repo: load endpoint: %w", err)
 	}
+	if lastTestAt.Valid {
+		record.LastTestAt = lastTestAt.Int64
+	}
 	record.LastTestOK = lastTestOK.Valid && lastTestOK.Int64 == 1
+	if lastError.Valid {
+		record.LastError = lastError.String
+	}
 	return record, nil
 }
 
@@ -617,7 +661,9 @@ func (r *Repository) ListEndpoints(ctx context.Context) ([]EndpointRecord, error
 	var endpoints []EndpointRecord
 	for rows.Next() {
 		var record EndpointRecord
+		var lastTestAt sql.NullInt64
 		var lastTestOK sql.NullInt64
+		var lastError sql.NullString
 		if err := rows.Scan(
 			&record.ID,
 			&record.ProviderID,
@@ -629,13 +675,19 @@ func (r *Repository) ListEndpoints(ctx context.Context) ([]EndpointRecord, error
 			&record.OriginProvider,
 			&record.OriginRouteLabel,
 			&record.AuthJSON,
-			&record.LastTestAt,
+			&lastTestAt,
 			&lastTestOK,
-			&record.LastError,
+			&lastError,
 		); err != nil {
 			return nil, fmt.Errorf("catalog repo: list endpoints scan: %w", err)
 		}
+		if lastTestAt.Valid {
+			record.LastTestAt = lastTestAt.Int64
+		}
 		record.LastTestOK = lastTestOK.Valid && lastTestOK.Int64 == 1
+		if lastError.Valid {
+			record.LastError = lastError.String
+		}
 		endpoints = append(endpoints, record)
 	}
 	if err := rows.Err(); err != nil {
@@ -653,7 +705,9 @@ func (r *Repository) GetEndpoint(ctx context.Context, endpointID string) (Endpoi
 
 	row := r.db.QueryRowContext(ctx, `SELECT e.id, e.provider_id, p.name, e.display_name, e.adapter_type, e.base_url, e.route_kind, e.origin_provider, e.origin_route_label, e.auth_json, e.last_test_at, e.last_test_ok, e.last_error FROM catalog_endpoints e JOIN catalog_providers p ON p.id = e.provider_id WHERE e.id = ?`, endpointID)
 	var record EndpointRecord
+	var lastTestAt sql.NullInt64
 	var lastTestOK sql.NullInt64
+	var lastError sql.NullString
 	err := row.Scan(
 		&record.ID,
 		&record.ProviderID,
@@ -665,9 +719,9 @@ func (r *Repository) GetEndpoint(ctx context.Context, endpointID string) (Endpoi
 		&record.OriginProvider,
 		&record.OriginRouteLabel,
 		&record.AuthJSON,
-		&record.LastTestAt,
+		&lastTestAt,
 		&lastTestOK,
-		&record.LastError,
+		&lastError,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return EndpointRecord{}, nil
@@ -675,7 +729,13 @@ func (r *Repository) GetEndpoint(ctx context.Context, endpointID string) (Endpoi
 	if err != nil {
 		return EndpointRecord{}, fmt.Errorf("catalog repo: get endpoint: %w", err)
 	}
+	if lastTestAt.Valid {
+		record.LastTestAt = lastTestAt.Int64
+	}
 	record.LastTestOK = lastTestOK.Valid && lastTestOK.Int64 == 1
+	if lastError.Valid {
+		record.LastError = lastError.String
+	}
 	return record, nil
 }
 
@@ -929,6 +989,37 @@ type ModelIntrinsicRecord struct {
 	OutputModalities         []string
 }
 
+// GetModelEffectiveCostTier returns the resolved cost tier for a model entry.
+func (r *Repository) GetModelEffectiveCostTier(ctx context.Context, entryID string) (string, error) {
+
+	if r == nil || r.db == nil {
+		return "", fmt.Errorf("catalog repo: db required")
+	}
+	if strings.TrimSpace(entryID) == "" {
+		return "", fmt.Errorf("catalog repo: model entry id required")
+	}
+
+	var costTier sql.NullString
+	err := r.db.QueryRowContext(
+		ctx,
+		`SELECT COALESCE(ua.cost_tier_override, sp.cost_tier)
+         FROM model_system_profile sp
+         LEFT JOIN model_user_addenda ua ON ua.model_catalog_entry_id = sp.model_catalog_entry_id
+         WHERE sp.model_catalog_entry_id = ?`,
+		entryID,
+	).Scan(&costTier)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("catalog repo: get model cost tier: %w", err)
+	}
+	if costTier.Valid {
+		return costTier.String, nil
+	}
+	return "", nil
+}
+
 // GetModelIntrinsic loads intrinsic capabilities for a model entry.
 func (r *Repository) GetModelIntrinsic(ctx context.Context, entryID string) (ModelIntrinsicRecord, error) {
 
@@ -971,6 +1062,7 @@ func (r *Repository) GetModelIntrinsic(ctx context.Context, entryID string) (Mod
 type ModelSummaryRecord struct {
 	ModelEntryRecord
 	ModelIntrinsicRecord
+	CostTier string
 }
 
 // ListModelSummaries returns models with intrinsic metadata.
@@ -1009,9 +1101,14 @@ func (r *Repository) ListModelSummaries(ctx context.Context) ([]ModelSummaryReco
 		if err != nil {
 			return nil, err
 		}
+		costTier, err := r.GetModelEffectiveCostTier(ctx, entry.ID)
+		if err != nil {
+			return nil, err
+		}
 		summaries = append(summaries, ModelSummaryRecord{
 			ModelEntryRecord:     entry,
 			ModelIntrinsicRecord: intrinsic,
+			CostTier:             costTier,
 		})
 	}
 	if err := rows.Err(); err != nil {

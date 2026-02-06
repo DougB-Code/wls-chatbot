@@ -32,6 +32,25 @@ type Service struct {
 	logger    coreports.Logger
 }
 
+// defaultRoleRecords defines app-provided role contracts seeded into the catalog.
+var defaultRoleRecords = []catalogrepo.RoleRecord{
+	{
+		Name:                    "text_summarization",
+		RequiredInputModalities: []string{"text"},
+		RequiredOutputModalities: []string{"text"},
+	},
+	{
+		Name:                    "video_transcription",
+		RequiredInputModalities: []string{"video"},
+		RequiredOutputModalities: []string{"text"},
+	},
+	{
+		Name:                    "audio_transcription",
+		RequiredInputModalities: []string{"audio"},
+		RequiredOutputModalities: []string{"text"},
+	},
+}
+
 // NewService creates a catalog service with required dependencies.
 func NewService(repo *catalogrepo.Repository, providers ProviderService, cfg config.AppConfig, logger coreports.Logger) *Service {
 
@@ -48,6 +67,9 @@ func (s *Service) RefreshAll(ctx context.Context) error {
 
 	if s == nil {
 		return fmt.Errorf("catalog service: missing dependencies")
+	}
+	if err := s.ensureDefaultRoles(ctx); err != nil {
+		return err
 	}
 
 	providerInfos := s.indexProviders()
@@ -112,6 +134,12 @@ func (s *Service) GetOverview(ctx context.Context) (CatalogOverview, error) {
 
 	if s == nil || s.repo == nil {
 		return CatalogOverview{}, fmt.Errorf("catalog service: repo required")
+	}
+	if err := s.ensureDefaultRoles(ctx); err != nil {
+		return CatalogOverview{}, err
+	}
+	if err := s.ensureConnectedProviderCatalog(ctx); err != nil {
+		return CatalogOverview{}, err
 	}
 
 	providers, err := s.repo.ListProviders(ctx)
@@ -230,6 +258,43 @@ func (s *Service) GetOverview(ctx context.Context) (CatalogOverview, error) {
 		Endpoints: endpointSummaries,
 		Roles:     roleSummaries,
 	}, nil
+}
+
+// ensureConnectedProviderCatalog backfills catalog endpoints for connected providers.
+func (s *Service) ensureConnectedProviderCatalog(ctx context.Context) error {
+
+	if s == nil || s.repo == nil {
+		return fmt.Errorf("catalog service: repo required")
+	}
+
+	endpoints, err := s.repo.ListEndpoints(ctx)
+	if err != nil {
+		return err
+	}
+
+	hasEndpointByProvider := make(map[string]struct{}, len(endpoints))
+	for _, endpoint := range endpoints {
+		hasEndpointByProvider[endpoint.ProviderName] = struct{}{}
+	}
+
+	providerInfos := s.indexProviders()
+	for _, providerConfig := range s.cfg.Providers {
+		info := providerInfos[providerConfig.Name]
+		if !info.IsConnected {
+			continue
+		}
+		if _, exists := hasEndpointByProvider[providerConfig.Name]; exists {
+			continue
+		}
+
+		if err := s.refreshProvider(ctx, providerConfig, info); err != nil {
+			s.logWarn("Catalog connected provider bootstrap failed", err, coreports.LogField{Key: "provider", Value: providerConfig.Name})
+			continue
+		}
+		hasEndpointByProvider[providerConfig.Name] = struct{}{}
+	}
+
+	return nil
 }
 
 // SaveRole creates or updates a role definition.
@@ -641,6 +706,29 @@ func (s *Service) findProviderConfig(name string) (config.ProviderConfig, bool) 
 	return config.ProviderConfig{}, false
 }
 
+// ensureDefaultRoles inserts app-provided roles when they are missing.
+func (s *Service) ensureDefaultRoles(ctx context.Context) error {
+
+	if s == nil || s.repo == nil {
+		return fmt.Errorf("catalog service: repo required")
+	}
+
+	for _, role := range defaultRoleRecords {
+		existing, err := s.repo.GetRoleByName(ctx, role.Name)
+		if err != nil {
+			return err
+		}
+		if existing.ID != "" {
+			continue
+		}
+		if _, err := s.repo.UpsertRole(ctx, role); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func resolveCloudflareBaseURL(baseURL string, inputs map[string]string) string {
 
 	trimmed := strings.TrimSpace(baseURL)
@@ -689,12 +777,19 @@ func diffModalities(required, supported []string) []string {
 
 func mapModelSummary(record catalogrepo.ModelSummaryRecord) ModelSummary {
 
+	contextWindow := parseContextWindow(record.MetadataJSON)
+	costTier := strings.TrimSpace(record.CostTier)
+	if costTier == "" {
+		costTier = "unknown"
+	}
 	return ModelSummary{
 		ID:                       record.ID,
 		EndpointID:               record.EndpointID,
 		ModelID:                  record.ModelID,
 		DisplayName:              record.DisplayName,
 		AvailabilityState:        record.AvailabilityState,
+		ContextWindow:            contextWindow,
+		CostTier:                 costTier,
 		SupportsStreaming:        record.SupportsStreaming,
 		SupportsToolCalling:      record.SupportsToolCalling,
 		SupportsStructuredOutput: record.SupportsStructuredOutput,
@@ -702,6 +797,21 @@ func mapModelSummary(record catalogrepo.ModelSummaryRecord) ModelSummary {
 		InputModalities:          record.InputModalities,
 		OutputModalities:         record.OutputModalities,
 	}
+}
+
+// parseContextWindow extracts the context window from metadata JSON.
+func parseContextWindow(metadata string) int {
+
+	if strings.TrimSpace(metadata) == "" {
+		return 0
+	}
+	var decoded struct {
+		ContextWindow int `json:"contextWindow"`
+	}
+	if err := json.Unmarshal([]byte(metadata), &decoded); err != nil {
+		return 0
+	}
+	return decoded.ContextWindow
 }
 
 func (s *Service) logWarn(message string, err error, fields ...coreports.LogField) {

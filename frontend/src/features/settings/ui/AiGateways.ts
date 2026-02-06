@@ -20,23 +20,19 @@ export class ConnectionsView extends SignalWatcher(LitElement) {
         settingsSharedStyles,
         css`
         :host {
-            display: block;
-            height: 100%;
-            overflow-y: auto;
-        }
-
-        .settings {
-            display: flex;
-            flex-direction: column;
-            gap: 24px;
-            flex: 1;
-            min-height: 0;
-        }
-
-        .provider-list {
             display: flex;
             flex-direction: column;
             gap: 12px;
+        }
+
+        .empty-state {
+            padding: 32px 24px;
+            text-align: center;
+            color: var(--color-text-muted);
+            font-size: 14px;
+            border: 1px dashed var(--color-border-subtle);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.02);
         }
 
         .provider-item {
@@ -253,12 +249,6 @@ export class ConnectionsView extends SignalWatcher(LitElement) {
             padding-top: 10px;
         }
 
-        .provider-resources__list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-
         .provider-endpoints {
             display: flex;
             flex-direction: column;
@@ -308,24 +298,58 @@ export class ConnectionsView extends SignalWatcher(LitElement) {
             font-size: 12px;
         }
 
-        .endpoint-model {
+        .model-table {
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 8px;
+        }
+
+        .model-table__header,
+        .model-table__row {
+            display: grid;
+            grid-template-columns: minmax(220px, 1.4fr) minmax(90px, 0.6fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(140px, 1fr) minmax(160px, 1fr);
+            gap: 12px;
+            align-items: center;
+        }
+
+        .model-table__header {
+            font-size: 11px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--color-text-muted);
+            padding: 0 4px;
+        }
+
+        .model-table__row {
             padding: 8px 10px;
             border-radius: 8px;
             border: 1px solid var(--color-border-subtle);
             background: rgba(10, 12, 18, 0.6);
         }
 
-        .endpoint-model__name {
-            font-weight: 500;
+        .model-name {
+            font-weight: 600;
         }
 
-        .endpoint-model__tags {
+        .model-context {
+            font-size: 11px;
+            color: var(--color-text-muted);
+            margin-top: 2px;
+        }
+
+        .model-cost {
+            font-size: 12px;
+            color: var(--color-text-secondary);
+        }
+
+        .model-pill-group {
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
+        }
+
+        .model-table__empty {
+            font-size: 12px;
             color: var(--color-text-muted);
         }
 
@@ -336,14 +360,6 @@ export class ConnectionsView extends SignalWatcher(LitElement) {
             font-size: 11px;
         }
 
-        .provider-resource {
-            padding: 6px 10px;
-            border-radius: 999px;
-            border: 1px solid var(--color-border-subtle);
-            background: rgba(255, 255, 255, 0.04);
-            font-size: 12px;
-            color: var(--color-text-secondary);
-        }
     `,
     ];
 
@@ -483,6 +499,67 @@ export class ConnectionsView extends SignalWatcher(LitElement) {
     }
 
     /**
+     * format the context window display value.
+     */
+    private _formatContextWindow(contextWindow?: number): string {
+        if (!contextWindow || contextWindow <= 0) {
+            return 'Context window: unknown';
+        }
+        return `Context window: ${contextWindow.toLocaleString()}`;
+    }
+
+    /**
+     * resolve the display cost tier value.
+     */
+    private _resolveModelCostTier(costTier?: string): string {
+        const value = costTier?.trim() ?? '';
+        if (!value || value.trim() === '') {
+            return 'unknown';
+        }
+        return value;
+    }
+
+    /**
+     * resolve the capability labels for a model entry.
+     */
+    private _resolveModelCapabilities(model: {
+        supportsStreaming: boolean;
+        supportsToolCalling: boolean;
+        supportsStructuredOutput: boolean;
+        supportsVision: boolean;
+    }): string[] {
+        return [
+            model.supportsStreaming ? 'streaming' : '',
+            model.supportsToolCalling ? 'tools' : '',
+            model.supportsStructuredOutput ? 'structured' : '',
+            model.supportsVision ? 'vision' : '',
+        ].filter(Boolean);
+    }
+
+    /**
+     * add a role lookup entry without duplicates.
+     */
+    private _addRoleLookupEntry(roleLookup: Map<string, string[]>, key: string, roleName: string): void {
+        const normalizedKey = key.trim();
+        if (normalizedKey === '') {
+            return;
+        }
+        const existing = roleLookup.get(normalizedKey) ?? [];
+        if (existing.includes(roleName)) {
+            return;
+        }
+        roleLookup.set(normalizedKey, [...existing, roleName]);
+    }
+
+    /**
+     * resolve role names for a model catalog entry.
+     */
+    private _resolveAssignedRoles(modelCatalogEntryId: string, roleNamesByCatalogEntryId: Map<string, string[]>): string[] {
+        const names = roleNamesByCatalogEntryId.get(modelCatalogEntryId) ?? [];
+        return [...names].sort((a, b) => a.localeCompare(b));
+    }
+
+    /**
      * render the provider connections UI.
      */
     render() {
@@ -494,183 +571,247 @@ export class ConnectionsView extends SignalWatcher(LitElement) {
             list.push(endpoint);
             endpointGroups.set(endpoint.providerName, list);
         }
-        return html`
-            <div class="settings">
-                <header class="settings__header">
-                    <h1 class="settings__title">Provider Connections</h1>
-                    <p class="settings__subtitle">Configure your AI provider credentials to enable chat.</p>
-                </header>
+        const roles = overview?.roles ?? [];
+        const roleNamesByCatalogEntryId = new Map<string, string[]>();
+        for (const role of roles) {
+            const assignments = role.assignments ?? [];
+            for (const assignment of assignments) {
+                this._addRoleLookupEntry(roleNamesByCatalogEntryId, assignment.modelCatalogEntryId, role.name);
+            }
+        }
+        const providerList = providers.value;
+        const hasProviders = providerList.length > 0;
 
-                <div class="card">
-                    <h2 class="card__title">Available Providers</h2>
-                    <div class="provider-list">
-                        ${providers.value.map(provider => {
-            const resources = provider.resources ?? [];
-            const hasResources = resources.length > 0;
+        return html`
+            ${!hasProviders ? html`
+                <div class="empty-state">
+                    <p>No providers configured yet.</p>
+                    <p>Add an API key to connect to an AI provider and start chatting.</p>
+                </div>
+            ` : nothing}
+            ${hasProviders ? providerList.map(provider => {
+            const endpointList = endpointGroups.get(provider.name) ?? [];
+            const catalogModels = endpointList.flatMap((endpoint) => endpoint.models ?? []);
+            const hasResources = catalogModels.length > 0;
             const isExpanded = !!this._expandedProviders[provider.name];
             const status = provider.status;
             const hasIssue = !!status && status.ok === false;
             const resourceMeta = hasResources
-                ? `${resources.length} available`
+                ? `${catalogModels.length} available`
                 : (provider.isConnected ? 'No resources found' : 'Connect to load');
-            const modelCount = hasResources ? resources.length : provider.models.length;
+            const modelCount = catalogModels.length;
             const isBusy = !!providerBusy.value[provider.name];
             const fields = provider.credentialFields ?? [];
-            const endpointList = endpointGroups.get(provider.name) ?? [];
 
             return html`
-                                <div class="provider-item ${provider.isActive ? 'active' : ''}">
-                                    <div class="provider-row">
-                                        <div class="provider-info">
-                                            <span class="provider-name">${provider.displayName}</span>
-                                            <span class="provider-models">${modelCount} models</span>
+                        <div class="provider-item ${provider.isActive ? 'active' : ''}">
+                            <div class="provider-row">
+                                <div class="provider-info">
+                                    <span class="provider-name">${provider.displayName}</span>
+                                    <span class="provider-models">${modelCount} models</span>
+                                </div>
+                                <div class="provider-actions">
+                                    ${fields.length > 0 ? html`
+                                        <div class="provider-inputs">
+                                            ${fields.map((field) => html`
+                                                <label class="provider-input">
+                                                    <span class="provider-label">${field.label}${field.required ? ' *' : ''}</span>
+                                                    <input
+                                                        class="input"
+                                                        type=${field.secret ? 'password' : 'text'}
+                                                        placeholder=${field.placeholder || field.label}
+                                                        .value=${this._resolveCredentialValue(provider, field)}
+                                                        @input=${(e: Event) => this._handleCredentialInput(
+                provider.name,
+                field.name,
+                (e.target as HTMLInputElement).value
+            )}
+                                                    />
+                                                    ${field.help ? html`<span class="provider-help">${field.help}</span>` : nothing}
+                                                </label>
+                                            `)}
                                         </div>
-                                        <div class="provider-actions">
-                                            ${fields.length > 0 ? html`
-                                                <div class="provider-inputs">
-                                                    ${fields.map((field) => html`
-                                                        <label class="provider-input">
-                                                            <span class="provider-label">${field.label}${field.required ? ' *' : ''}</span>
-                                                            <input
-                                                                class="input"
-                                                                type=${field.secret ? 'password' : 'text'}
-                                                                placeholder=${field.placeholder || field.label}
-                                                                .value=${this._resolveCredentialValue(provider, field)}
-                                                                @input=${(e: Event) => this._handleCredentialInput(
-                                                                    provider.name,
-                                                                    field.name,
-                                                                    (e.target as HTMLInputElement).value
-                                                                )}
-                                                            />
-                                                            ${field.help ? html`<span class="provider-help">${field.help}</span>` : nothing}
-                                                        </label>
-                                                    `)}
-                                                </div>
-                                            ` : nothing}
-                                            ${!provider.isConnected ? html`
-                                                <button
-                                                    class="btn btn--primary"
-                                                    @click=${() => this._handleConfigureProvider(provider, 'provider-connect')}
-                                                    ?disabled=${isBusy}
-                                                >
-                                                    ${isBusy ? 'Connecting...' : 'Connect'}
-                                                </button>
-                                            ` : html`
-                                                 <button
-                                                    class="btn"
-                                                    @click=${() => this._handleConfigureProvider(provider, 'provider-configure')}
-                                                    ?disabled=${isBusy}
-                                                >
-                                                    ${isBusy ? 'Updating...' : 'Update'}
-                                                </button>
-                                                <button
-                                                    class="btn"
-                                                    @click=${() => this._handleRefreshProvider(provider.name)}
-                                                    ?disabled=${isBusy}
-                                                    title="Refresh available models"
-                                                >
-                                                     ${isBusy ? 'Refreshing...' : 'Refresh'}
-                                                </button>
-                                                <button
-                                                    class="btn btn--danger"
-                                                    @click=${() => this._handleDisconnectProvider(provider.name)}
-                                                    ?disabled=${isBusy}
-                                                    title="Disconnect and remove stored credentials"
-                                                >
-                                                    Disconnect
-                                                </button>
-                                            `}
+                                    ` : nothing}
+                                    ${!provider.isConnected ? html`
+                                        <button
+                                            class="btn btn--primary"
+                                            @click=${() => this._handleConfigureProvider(provider, 'provider-connect')}
+                                            ?disabled=${isBusy}
+                                        >
+                                            ${isBusy ? 'Connecting...' : 'Connect'}
+                                        </button>
+                                    ` : html`
+                                         <button
+                                            class="btn"
+                                            @click=${() => this._handleConfigureProvider(provider, 'provider-configure')}
+                                            ?disabled=${isBusy}
+                                        >
+                                            ${isBusy ? 'Updating...' : 'Update'}
+                                        </button>
+                                        <button
+                                            class="btn"
+                                            @click=${() => this._handleRefreshProvider(provider.name)}
+                                            ?disabled=${isBusy}
+                                            title="Refresh available models"
+                                        >
+                                             ${isBusy ? 'Refreshing...' : 'Refresh'}
+                                        </button>
+                                        <button
+                                            class="btn btn--danger"
+                                            @click=${() => this._handleDisconnectProvider(provider.name)}
+                                            ?disabled=${isBusy}
+                                            title="Disconnect and remove stored credentials"
+                                        >
+                                            Disconnect
+                                        </button>
+                                    `}
+                                </div>
+                            </div>
+                            ${hasIssue ? html`
+                                <div class="provider-status provider-status--error">
+                                    <span class="provider-status__dot" aria-hidden="true"></span>
+                                    <span class="provider-status__text">
+                                        ${status?.message || 'Provider entitlement check failed.'}
+                                    </span>
+                                </div>
+                            ` : nothing}
+                            <button
+                                class="provider-resources__toggle"
+                                ?disabled=${!hasResources}
+                                @click=${() => this._toggleProviderResources(provider.name)}
+                            >
+                                <span class="provider-resources__label">Resources</span>
+                                <span class="provider-resources__meta">${resourceMeta}</span>
+                                <span class="provider-resources__chevron ${isExpanded ? 'open' : ''}">
+                                     <svg viewBox="0 0 12 12" aria-hidden="true">
+                                         <path d="M3 4l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                                     </svg>
+                                </span>
+                            </button>
+                            ${hasResources && isExpanded ? html`
+                                <div class="provider-resources">
+                                    <div class="model-table">
+                                        <div class="model-table__header">
+                                            <span>Model</span>
+                                            <span>Model cost</span>
+                                            <span>Input</span>
+                                            <span>Output</span>
+                                            <span>Capabilities</span>
+                                            <span>Role</span>
                                         </div>
+                                        ${catalogModels.map(model => {
+                    const inputModalities = model.inputModalities ?? [];
+                    const outputModalities = model.outputModalities ?? [];
+                    const capabilities = this._resolveModelCapabilities(model);
+                    const roleNames = this._resolveAssignedRoles(model.id, roleNamesByCatalogEntryId);
+                    return html`
+                                                    <div class="model-table__row">
+                                                        <div>
+                                                            <div class="model-name">${model.displayName || model.modelId}</div>
+                                                            <div class="model-context">${this._formatContextWindow(model.contextWindow)}</div>
+                                                        </div>
+                                                        <div class="model-cost">${this._resolveModelCostTier(model.costTier)}</div>
+                                                        <div class="model-pill-group">
+                                                            ${inputModalities.length === 0 ? html`<span class="model-table__empty">-</span>` : inputModalities.map(modality => html`<span class="endpoint-tag">${modality}</span>`)}
+                                                        </div>
+                                                        <div class="model-pill-group">
+                                                            ${outputModalities.length === 0 ? html`<span class="model-table__empty">-</span>` : outputModalities.map(modality => html`<span class="endpoint-tag">${modality}</span>`)}
+                                                        </div>
+                                                        <div class="model-pill-group">
+                                                            ${capabilities.length === 0 ? html`<span class="model-table__empty">-</span>` : capabilities.map(capability => html`<span class="endpoint-tag">${capability}</span>`)}
+                                                        </div>
+                                                        <div class="model-pill-group">
+                                                            ${roleNames.length === 0 ? html`<span class="model-table__empty">-</span>` : roleNames.map(roleName => html`<span class="endpoint-tag">${roleName}</span>`)}
+                                                        </div>
+                                                    </div>
+                                                `;
+                })}
                                     </div>
-                                    ${hasIssue ? html`
-                                        <div class="provider-status provider-status--error">
-                                            <span class="provider-status__dot" aria-hidden="true"></span>
-                                            <span class="provider-status__text">
-                                                ${status?.message || 'Provider entitlement check failed.'}
-                                            </span>
-                                        </div>
-                                    ` : nothing}
-                                    <button
-                                        class="provider-resources__toggle"
-                                        ?disabled=${!hasResources}
-                                        @click=${() => this._toggleProviderResources(provider.name)}
-                                    >
-                                        <span class="provider-resources__label">Resources</span>
-                                        <span class="provider-resources__meta">${resourceMeta}</span>
-                                        <span class="provider-resources__chevron ${isExpanded ? 'open' : ''}">
-                                             <svg viewBox="0 0 12 12" aria-hidden="true">
-                                                 <path d="M3 4l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
-                                             </svg>
-                                        </span>
-                                    </button>
-                                    ${hasResources && isExpanded ? html`
-                                        <div class="provider-resources">
-                                            <div class="provider-resources__list">
-                                                ${resources.map(resource => html`
-                                                    <span class="provider-resource">${resource.name || resource.id}</span>
-                                                `)}
-                                            </div>
-                                        </div>
-                                    ` : nothing}
-                                    ${endpointList.length > 0 ? html`
-                                        <div class="provider-endpoints">
-                                            ${endpointList.map(endpoint => {
-                                                const endpointBusy = !!catalogBusy.value[endpoint.id];
-                                                const endpointModels = endpoint.models ?? [];
-                                                return html`
+                                </div>
+                            ` : nothing}
+                            ${endpointList.length > 0 ? html`
+                                <div class="provider-endpoints">
+                                    ${endpointList.map(endpoint => {
+                const endpointBusy = !!catalogBusy.value[endpoint.id];
+                const endpointModels = endpoint.models ?? [];
+                return html`
                                                     <div class="endpoint-card">
                                                         <div class="endpoint-row">
                                                             <div>
                                                                 <div class="endpoint-title">${endpoint.displayName}</div>
-                                                                <div class="endpoint-meta">
-                                                                    ${endpoint.routeKind}${endpoint.originProvider ? ` · ${endpoint.originProvider}` : ''}${endpoint.originRouteLabel ? ` · ${endpoint.originRouteLabel}` : ''}
-                                                                </div>
-                                                            </div>
-                                                            <div class="endpoint-actions">
-                                                                <button
-                                                                    class="btn"
-                                                                    @click=${() => this._handleTestEndpoint(endpoint.id)}
-                                                                    ?disabled=${endpointBusy}
-                                                                >
-                                                                    ${endpointBusy ? 'Testing...' : 'Test'}
-                                                                </button>
-                                                                <button
-                                                                    class="btn"
-                                                                    @click=${() => this._handleRefreshEndpoint(endpoint.id)}
-                                                                    ?disabled=${endpointBusy}
-                                                                >
-                                                                    ${endpointBusy ? 'Refreshing...' : 'Refresh'}
-                                                                </button>
-                                                            </div>
+                                                        <div class="endpoint-meta">
+                                                            ${endpoint.routeKind}${endpoint.originProvider ? ` · ${endpoint.originProvider}` : ''}${endpoint.originRouteLabel ? ` · ${endpoint.originRouteLabel}` : ''}
+                                                        </div>
+                                                    </div>
+                                                    <div class="endpoint-actions">
+                                                        <button
+                                                            class="btn"
+                                                            @click=${() => this._handleTestEndpoint(endpoint.id)}
+                                                            ?disabled=${endpointBusy}
+                                                        >
+                                                            ${endpointBusy ? 'Testing...' : 'Test'}
+                                                        </button>
+                                                        <button
+                                                            class="btn"
+                                                            @click=${() => this._handleRefreshEndpoint(endpoint.id)}
+                                                            ?disabled=${endpointBusy}
+                                                        >
+                                                            ${endpointBusy ? 'Refreshing...' : 'Refresh'}
+                                                        </button>
+                                                    </div>
                                                         </div>
                                                         <div class="endpoint-models">
                                                             ${endpointModels.length === 0 ? html`
                                                                 <span class="provider-models">No models discovered yet.</span>
-                                                            ` : endpointModels.map(model => html`
-                                                                <div class="endpoint-model">
-                                                                    <div class="endpoint-model__name">${model.displayName || model.modelId}</div>
-                                                                    <div class="endpoint-model__tags">
-                                                                        ${model.inputModalities.map(modality => html`<span class="endpoint-tag">in:${modality}</span>`)}
-                                                                        ${model.outputModalities.map(modality => html`<span class="endpoint-tag">out:${modality}</span>`)}
-                                                                        ${model.supportsStreaming ? html`<span class="endpoint-tag">streaming</span>` : nothing}
-                                                                        ${model.supportsToolCalling ? html`<span class="endpoint-tag">tools</span>` : nothing}
-                                                                        ${model.supportsStructuredOutput ? html`<span class="endpoint-tag">structured</span>` : nothing}
-                                                                        ${model.supportsVision ? html`<span class="endpoint-tag">vision</span>` : nothing}
+                                                            ` : html`
+                                                                <div class="model-table">
+                                                                    <div class="model-table__header">
+                                                                        <span>Model</span>
+                                                                        <span>Cost tier</span>
+                                                                        <span>Input</span>
+                                                                        <span>Output</span>
+                                                                        <span>Capabilities</span>
+                                                                        <span>Role</span>
                                                                     </div>
+                                                                    ${endpointModels.map(model => {
+                    const inputModalities = model.inputModalities ?? [];
+                    const outputModalities = model.outputModalities ?? [];
+                    const capabilities = this._resolveModelCapabilities(model);
+                    const costTier = this._resolveModelCostTier(model.costTier);
+                    const roleNames = this._resolveAssignedRoles(model.id, roleNamesByCatalogEntryId);
+                    return html`
+                                                                            <div class="model-table__row">
+                                                                                <div>
+                                                                                    <div class="model-name">${model.displayName || model.modelId}</div>
+                                                                                    <div class="model-context">${this._formatContextWindow(model.contextWindow)}</div>
+                                                                                </div>
+                                                                                <div class="model-cost">${costTier}</div>
+                                                                                <div class="model-pill-group">
+                                                                                    ${inputModalities.length === 0 ? html`<span class="model-table__empty">—</span>` : inputModalities.map(modality => html`<span class="endpoint-tag">${modality}</span>`)}
+                                                                                </div>
+                                                                                <div class="model-pill-group">
+                                                                                    ${outputModalities.length === 0 ? html`<span class="model-table__empty">—</span>` : outputModalities.map(modality => html`<span class="endpoint-tag">${modality}</span>`)}
+                                                                                </div>
+                                                                                <div class="model-pill-group">
+                                                                                    ${capabilities.length === 0 ? html`<span class="model-table__empty">—</span>` : capabilities.map(capability => html`<span class="endpoint-tag">${capability}</span>`)}
+                                                                                </div>
+                                                                                <div class="model-pill-group">
+                                                                                    ${roleNames.length === 0 ? html`<span class="model-table__empty">-</span>` : roleNames.map(roleName => html`<span class="endpoint-tag">${roleName}</span>`)}
+                                                                                </div>
+                                                                            </div>
+                                                                        `;
+                })}
                                                                 </div>
-                                                            `)}
+                                                            `}
                                                         </div>
                                                     </div>
                                                 `;
-                                            })}
-                                        </div>
-                                    ` : nothing}
+            })}
                                 </div>
-                            `;
-        })}
-                    </div>
-                </div>
-            </div>
+                            ` : nothing}
+                        </div>
+                    `;
+        }) : nothing}
         `;
     }
 }

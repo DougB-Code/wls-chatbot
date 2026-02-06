@@ -41,6 +41,8 @@ type ModelSummary struct {
 	ModelID                  string   `json:"modelId"`
 	DisplayName              string   `json:"displayName"`
 	AvailabilityState        string   `json:"availabilityState"`
+	ContextWindow            int      `json:"contextWindow"`
+	CostTier                 string   `json:"costTier"`
 	SupportsStreaming        bool     `json:"supportsStreaming"`
 	SupportsToolCalling      bool     `json:"supportsToolCalling"`
 	SupportsStructuredOutput bool     `json:"supportsStructuredOutput"`
