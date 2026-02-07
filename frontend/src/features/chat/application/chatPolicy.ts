@@ -12,17 +12,25 @@ import { activeProvider } from '../../settings/application/providerSelectors';
 import { preferredModelId } from '../state/chatPreferences';
 import { isModelAvailable, pickDefaultModel, resolveProviderModels } from '../../settings/domain/modelSelection';
 
-let chatInitialized = false;
+let chatEventsInitialized = false;
+let chatHydrated = false;
+let chatInitPromise: Promise<void> | null = null;
 
 /**
  * initialize chat event handling and hydrate active conversation state.
  */
 export async function initChatPolicy(): Promise<void> {
-    if (chatInitialized) return;
-    chatInitialized = true;
-    initChatEvents();
+    if (chatHydrated) return;
+    if (!chatEventsInitialized) {
+        initChatEvents();
+        chatEventsInitialized = true;
+    }
+    if (chatInitPromise) {
+        await chatInitPromise;
+        return;
+    }
 
-    try {
+    chatInitPromise = (async () => {
         const summaries = await chatTransport.listConversations();
         const deletedSummaries = await chatTransport.listDeletedConversations();
         const allSummaries = [...summaries, ...deletedSummaries];
@@ -38,9 +46,13 @@ export async function initChatPolicy(): Promise<void> {
         if (activeConversation) {
             store.upsertConversation(activeConversation, true);
         }
-    } catch (err) {
-        // Backend might not be available yet; keep UI responsive.
-        console.warn('Failed to load active conversation:', err);
+        chatHydrated = true;
+    })();
+
+    try {
+        await chatInitPromise;
+    } finally {
+        chatInitPromise = null;
     }
 }
 
@@ -96,6 +108,9 @@ export async function createNewConversation(): Promise<Conversation> {
         : pickDefaultModel(models);
 
     const conversation = await chatTransport.createConversation(provider.name, model);
+    if (!conversation?.id) {
+        throw new Error('Failed to create conversation');
+    }
     store.upsertConversation(conversation, true);
 
     return conversation;

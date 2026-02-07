@@ -9,8 +9,8 @@ func TestDefaultConfigProvidesProviders(t *testing.T) {
 
 	cfg := DefaultConfig()
 
-	if len(cfg.Providers) != 6 {
-		t.Fatalf("expected 6 providers, got %d", len(cfg.Providers))
+	if len(cfg.Providers) != 7 {
+		t.Fatalf("expected 7 providers, got %d", len(cfg.Providers))
 	}
 
 	openai := cfg.Providers[0]
@@ -56,5 +56,13 @@ func TestDefaultConfigProvidesProviders(t *testing.T) {
 	cloudflare := cfg.Providers[5]
 	if cloudflare.Type != "cloudflare" || cloudflare.Name != "cloudflare" {
 		t.Fatalf("unexpected cloudflare provider: %+v", cloudflare)
+	}
+
+	openrouter := cfg.Providers[6]
+	if openrouter.Type != "openrouter" || openrouter.Name != "openrouter" {
+		t.Fatalf("unexpected openrouter provider: %+v", openrouter)
+	}
+	if openrouter.BaseURL == "" {
+		t.Fatalf("expected openrouter baseUrl to be set")
 	}
 }

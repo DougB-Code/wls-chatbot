@@ -2,11 +2,18 @@
 // internal/core/adapters/wails/chat_api.go
 package wails
 
-import "github.com/MadeByDoug/wls-chatbot/internal/features/chat/usecase"
+import (
+	"fmt"
+
+	"github.com/MadeByDoug/wls-chatbot/internal/features/chat/usecase"
+)
 
 // CreateConversation creates a new conversation with the given settings.
-func (b *Bridge) CreateConversation(providerName, model string) *chat.Conversation {
+func (b *Bridge) CreateConversation(providerName, model string) (*chat.Conversation, error) {
 
+	if b.chat == nil {
+		return nil, fmt.Errorf("chat orchestrator not configured")
+	}
 	return b.chat.CreateConversation(providerName, model)
 }
 

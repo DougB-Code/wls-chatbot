@@ -1,5 +1,6 @@
 /**
  * define shell-level navigation identifiers.
+ * frontend/src/types/shell.ts
  */
 
 /**

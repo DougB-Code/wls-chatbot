@@ -1,29 +1,34 @@
-// re-export port types for the provider use case.
+// types.go re-exports provider interface types for the provider use case.
 // internal/features/settings/usecase/types.go
 package provider
 
 import (
 	coreports "github.com/MadeByDoug/wls-chatbot/internal/core/ports"
-	settingsports "github.com/MadeByDoug/wls-chatbot/internal/features/settings/ports"
+	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/providers/interfaces/core"
+	providergateway "github.com/MadeByDoug/wls-chatbot/internal/features/providers/interfaces/gateway"
 )
 
-type Provider = settingsports.Provider
-type Config = settingsports.ProviderConfig
-type ProviderMessage = settingsports.ProviderMessage
-type ChatOptions = settingsports.ChatOptions
-type Role = settingsports.Role
-type Model = settingsports.Model
-type Tool = settingsports.Tool
-type Chunk = settingsports.Chunk
-type UsageStats = settingsports.UsageStats
-type CredentialField = settingsports.CredentialField
-type ProviderCredentials = settingsports.ProviderCredentials
+type Provider = providercore.Provider
+type Config = providercore.ProviderConfig
+type ProviderMessage = providergateway.ProviderMessage
+type ChatOptions = providergateway.ChatOptions
+type Role = providergateway.Role
+type Model = providercore.Model
+type Tool = providergateway.Tool
+type Chunk = providergateway.Chunk
+type UsageStats = providergateway.UsageStats
+type ImageGenerationOptions = providergateway.ImageGenerationOptions
+type ImageEditOptions = providergateway.ImageEditOptions
+type ImageResult = providergateway.ImageResult
+type ImageData = providergateway.ImageData
+type CredentialField = providercore.CredentialField
+type ProviderCredentials = providercore.ProviderCredentials
 
-type Registry = settingsports.ProviderRegistry
-type Cache = settingsports.ProviderCache
-type CacheSnapshot = settingsports.ProviderCacheSnapshot
-type CacheEntry = settingsports.ProviderCacheEntry
-type SecretStore = settingsports.SecretStore
-type InputsStore = settingsports.ProviderInputsStore
+type Registry = providercore.ProviderRegistry
+type Cache = providercore.ProviderCache
+type CacheSnapshot = providercore.ProviderCacheSnapshot
+type CacheEntry = providercore.ProviderCacheEntry
+type SecretStore = providercore.SecretStore
+type InputsStore = providercore.ProviderInputsStore
 type Logger = coreports.Logger
 type LogField = coreports.LogField

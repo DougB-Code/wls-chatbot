@@ -8,9 +8,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
+	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/providers/interfaces/core"
 	"github.com/google/uuid"
 )
 
@@ -67,30 +69,31 @@ CREATE TABLE IF NOT EXISTS model_catalog_entries (
     availability_state TEXT NOT NULL,
     approved INTEGER NOT NULL CHECK (approved IN (0, 1)),
     missed_refreshes INTEGER NOT NULL,
+    source TEXT NOT NULL DEFAULT 'discovered',
     metadata_json TEXT,
     FOREIGN KEY (endpoint_id) REFERENCES catalog_endpoints(id) ON DELETE CASCADE,
     UNIQUE (endpoint_id, model_id)
 );
 
-CREATE TABLE IF NOT EXISTS model_intrinsic (
+CREATE TABLE IF NOT EXISTS model_capabilities (
     model_catalog_entry_id TEXT PRIMARY KEY,
     supports_streaming INTEGER NOT NULL CHECK (supports_streaming IN (0, 1)),
     supports_tool_calling INTEGER NOT NULL CHECK (supports_tool_calling IN (0, 1)),
     supports_structured_output INTEGER NOT NULL CHECK (supports_structured_output IN (0, 1)),
     supports_vision INTEGER NOT NULL CHECK (supports_vision IN (0, 1)),
-    intrinsic_source TEXT NOT NULL,
-    intrinsic_as_of INTEGER NOT NULL,
+    capabilities_source TEXT NOT NULL,
+    capabilities_as_of INTEGER NOT NULL,
     FOREIGN KEY (model_catalog_entry_id) REFERENCES model_catalog_entries(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS model_intrinsic_input_modalities (
+CREATE TABLE IF NOT EXISTS model_capabilities_input_modalities (
     model_catalog_entry_id TEXT NOT NULL,
     modality TEXT NOT NULL,
     PRIMARY KEY (model_catalog_entry_id, modality),
     FOREIGN KEY (model_catalog_entry_id) REFERENCES model_catalog_entries(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS model_intrinsic_output_modalities (
+CREATE TABLE IF NOT EXISTS model_capabilities_output_modalities (
     model_catalog_entry_id TEXT NOT NULL,
     modality TEXT NOT NULL,
     PRIMARY KEY (model_catalog_entry_id, modality),
@@ -187,8 +190,67 @@ func NewRepository(db *sql.DB) (*Repository, error) {
 	if _, err := db.Exec(catalogSchema); err != nil {
 		return nil, fmt.Errorf("catalog repo: ensure schema: %w", err)
 	}
+	if err := validateSchema(db); err != nil {
+		return nil, err
+	}
 
 	return &Repository{db: db}, nil
+}
+
+// validateSchema ensures required columns exist for strict-schema operation.
+func validateSchema(db *sql.DB) error {
+
+	requiredColumns := []struct {
+		table  string
+		column string
+	}{
+		{table: "model_capabilities_input_modalities", column: "model_catalog_entry_id"},
+		{table: "model_capabilities_input_modalities", column: "modality"},
+		{table: "model_capabilities_output_modalities", column: "model_catalog_entry_id"},
+		{table: "model_capabilities_output_modalities", column: "modality"},
+	}
+
+	for _, required := range requiredColumns {
+		exists, err := schemaHasColumn(db, required.table, required.column)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return fmt.Errorf(
+				"catalog repo: incompatible schema (%s.%s missing); remove workspace database and restart",
+				required.table,
+				required.column,
+			)
+		}
+	}
+	return nil
+}
+
+// schemaHasColumn reports whether a table contains a specific column.
+func schemaHasColumn(db *sql.DB, table, column string) (bool, error) {
+
+	query := fmt.Sprintf("PRAGMA table_info(%s)", table)
+	rows, err := db.Query(query)
+	if err != nil {
+		return false, fmt.Errorf("catalog repo: table info %s: %w", table, err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var cid, notNull, primaryKey int
+		var name, dataType string
+		var defaultValue sql.NullString
+		if err := rows.Scan(&cid, &name, &dataType, &notNull, &defaultValue, &primaryKey); err != nil {
+			return false, fmt.Errorf("catalog repo: table info scan %s: %w", table, err)
+		}
+		if name == column {
+			return true, nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("catalog repo: table info rows %s: %w", table, err)
+	}
+	return false, nil
 }
 
 // ProviderRecord describes a stored provider entity.
@@ -233,6 +295,7 @@ type ModelEntryRecord struct {
 	AvailabilityState string
 	Approved          bool
 	MissedRefreshes   int
+	Source            string // "seed", "user", or "discovered"
 	MetadataJSON      string
 }
 
@@ -392,7 +455,7 @@ func (r *Repository) ListProviders(ctx context.Context) ([]ProviderRecord, error
 	if err != nil {
 		return nil, fmt.Errorf("catalog repo: list providers: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var providers []ProviderRecord
 	for rows.Next() {
@@ -487,6 +550,9 @@ func (r *Repository) SaveProviderInputs(providerName string, inputs map[string]s
 			if trimmedKey == "" || trimmedValue == "" {
 				continue
 			}
+			if providercore.IsSensitiveCredentialName(trimmedKey) {
+				return fmt.Errorf("catalog repo: secret-like input key is not allowed: %s", trimmedKey)
+			}
 			if _, err := tx.Exec(`INSERT INTO provider_inputs (provider_id, input_key, input_value) VALUES (?, ?, ?)`, provider.ID, trimmedKey, trimmedValue); err != nil {
 				return fmt.Errorf("catalog repo: insert input: %w", err)
 			}
@@ -515,7 +581,7 @@ func (r *Repository) LoadProviderInputs(providerName string) (map[string]string,
 	if err != nil {
 		return nil, fmt.Errorf("catalog repo: load inputs: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	inputs := make(map[string]string)
 	for rows.Next() {
@@ -557,8 +623,12 @@ func (r *Repository) UpsertEndpoint(ctx context.Context, endpoint EndpointRecord
 	endpoint.RouteKind = normalizeOptional(endpoint.RouteKind)
 	endpoint.OriginProvider = normalizeOptional(endpoint.OriginProvider)
 	endpoint.OriginRouteLabel = normalizeOptional(endpoint.OriginRouteLabel)
+	authJSON, err := sanitizeEndpointAuthJSON(endpoint.AuthJSON)
+	if err != nil {
+		return EndpointRecord{}, err
+	}
 
-	_, err := r.db.ExecContext(
+	_, err = r.db.ExecContext(
 		ctx,
 		`INSERT INTO catalog_endpoints (id, provider_id, display_name, adapter_type, base_url, route_kind, origin_provider, origin_route_label, auth_json, created_at, updated_at, last_test_at, last_test_ok, last_error)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -578,7 +648,7 @@ func (r *Repository) UpsertEndpoint(ctx context.Context, endpoint EndpointRecord
 		endpoint.RouteKind,
 		endpoint.OriginProvider,
 		endpoint.OriginRouteLabel,
-		endpoint.AuthJSON,
+		authJSON,
 		now,
 		now,
 		nullIfZero(endpoint.LastTestAt),
@@ -591,6 +661,7 @@ func (r *Repository) UpsertEndpoint(ctx context.Context, endpoint EndpointRecord
 
 	row := r.db.QueryRowContext(ctx, `SELECT id, provider_id, display_name, adapter_type, base_url, route_kind, origin_provider, origin_route_label, auth_json, last_test_at, last_test_ok, last_error FROM catalog_endpoints WHERE provider_id = ? AND route_kind = ? AND origin_provider = ? AND origin_route_label = ? AND base_url = ?`, endpoint.ProviderID, endpoint.RouteKind, endpoint.OriginProvider, endpoint.OriginRouteLabel, endpoint.BaseURL)
 	var record EndpointRecord
+	var authJSON sql.NullString
 	var lastTestAt sql.NullInt64
 	var lastTestOK sql.NullInt64
 	var lastError sql.NullString
@@ -603,12 +674,15 @@ func (r *Repository) UpsertEndpoint(ctx context.Context, endpoint EndpointRecord
 		&record.RouteKind,
 		&record.OriginProvider,
 		&record.OriginRouteLabel,
-		&record.AuthJSON,
+		&authJSON,
 		&lastTestAt,
 		&lastTestOK,
 		&lastError,
 	); err != nil {
 		return EndpointRecord{}, fmt.Errorf("catalog repo: load endpoint: %w", err)
+	}
+	if authJSON.Valid {
+		record.AuthJSON = authJSON.String
 	}
 	if lastTestAt.Valid {
 		record.LastTestAt = lastTestAt.Int64
@@ -656,11 +730,12 @@ func (r *Repository) ListEndpoints(ctx context.Context) ([]EndpointRecord, error
 	if err != nil {
 		return nil, fmt.Errorf("catalog repo: list endpoints: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var endpoints []EndpointRecord
 	for rows.Next() {
 		var record EndpointRecord
+		var authJSON sql.NullString
 		var lastTestAt sql.NullInt64
 		var lastTestOK sql.NullInt64
 		var lastError sql.NullString
@@ -674,12 +749,15 @@ func (r *Repository) ListEndpoints(ctx context.Context) ([]EndpointRecord, error
 			&record.RouteKind,
 			&record.OriginProvider,
 			&record.OriginRouteLabel,
-			&record.AuthJSON,
+			&authJSON,
 			&lastTestAt,
 			&lastTestOK,
 			&lastError,
 		); err != nil {
 			return nil, fmt.Errorf("catalog repo: list endpoints scan: %w", err)
+		}
+		if authJSON.Valid {
+			record.AuthJSON = authJSON.String
 		}
 		if lastTestAt.Valid {
 			record.LastTestAt = lastTestAt.Int64
@@ -705,6 +783,7 @@ func (r *Repository) GetEndpoint(ctx context.Context, endpointID string) (Endpoi
 
 	row := r.db.QueryRowContext(ctx, `SELECT e.id, e.provider_id, p.name, e.display_name, e.adapter_type, e.base_url, e.route_kind, e.origin_provider, e.origin_route_label, e.auth_json, e.last_test_at, e.last_test_ok, e.last_error FROM catalog_endpoints e JOIN catalog_providers p ON p.id = e.provider_id WHERE e.id = ?`, endpointID)
 	var record EndpointRecord
+	var authJSON sql.NullString
 	var lastTestAt sql.NullInt64
 	var lastTestOK sql.NullInt64
 	var lastError sql.NullString
@@ -718,7 +797,7 @@ func (r *Repository) GetEndpoint(ctx context.Context, endpointID string) (Endpoi
 		&record.RouteKind,
 		&record.OriginProvider,
 		&record.OriginRouteLabel,
-		&record.AuthJSON,
+		&authJSON,
 		&lastTestAt,
 		&lastTestOK,
 		&lastError,
@@ -728,6 +807,9 @@ func (r *Repository) GetEndpoint(ctx context.Context, endpointID string) (Endpoi
 	}
 	if err != nil {
 		return EndpointRecord{}, fmt.Errorf("catalog repo: get endpoint: %w", err)
+	}
+	if authJSON.Valid {
+		record.AuthJSON = authJSON.String
 	}
 	if lastTestAt.Valid {
 		record.LastTestAt = lastTestAt.Int64
@@ -750,7 +832,7 @@ func (r *Repository) ListModelEntriesByEndpoint(ctx context.Context, endpointID 
 	if err != nil {
 		return nil, fmt.Errorf("catalog repo: list models: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var entries []ModelEntryRecord
 	for rows.Next() {
@@ -792,11 +874,14 @@ func (r *Repository) UpsertModelEntry(ctx context.Context, entry ModelEntryRecor
 	if entry.ID == "" {
 		entry.ID = newUUID()
 	}
+	if entry.Source == "" {
+		entry.Source = "discovered"
+	}
 
 	_, err := r.db.ExecContext(
 		ctx,
-		`INSERT INTO model_catalog_entries (id, endpoint_id, model_id, display_name, first_seen_at, last_seen_at, availability_state, approved, missed_refreshes, metadata_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO model_catalog_entries (id, endpoint_id, model_id, display_name, first_seen_at, last_seen_at, availability_state, approved, missed_refreshes, source, metadata_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(endpoint_id, model_id) DO UPDATE SET
            display_name = excluded.display_name,
            last_seen_at = excluded.last_seen_at,
@@ -813,13 +898,14 @@ func (r *Repository) UpsertModelEntry(ctx context.Context, entry ModelEntryRecor
 		entry.AvailabilityState,
 		boolToInt(entry.Approved),
 		entry.MissedRefreshes,
+		entry.Source,
 		entry.MetadataJSON,
 	)
 	if err != nil {
 		return ModelEntryRecord{}, fmt.Errorf("catalog repo: upsert model: %w", err)
 	}
 
-	row := r.db.QueryRowContext(ctx, `SELECT id, endpoint_id, model_id, display_name, first_seen_at, last_seen_at, availability_state, approved, missed_refreshes, metadata_json FROM model_catalog_entries WHERE endpoint_id = ? AND model_id = ?`, entry.EndpointID, entry.ModelID)
+	row := r.db.QueryRowContext(ctx, `SELECT id, endpoint_id, model_id, display_name, first_seen_at, last_seen_at, availability_state, approved, missed_refreshes, source, metadata_json FROM model_catalog_entries WHERE endpoint_id = ? AND model_id = ?`, entry.EndpointID, entry.ModelID)
 	var updated ModelEntryRecord
 	var approved int
 	if err := row.Scan(
@@ -832,6 +918,7 @@ func (r *Repository) UpsertModelEntry(ctx context.Context, entry ModelEntryRecor
 		&updated.AvailabilityState,
 		&approved,
 		&updated.MissedRefreshes,
+		&updated.Source,
 		&updated.MetadataJSON,
 	); err != nil {
 		return ModelEntryRecord{}, fmt.Errorf("catalog repo: load model: %w", err)
@@ -863,8 +950,8 @@ func (r *Repository) UpdateMissingModelEntry(ctx context.Context, entryID string
 	return nil
 }
 
-// EnsureModelIntrinsic inserts intrinsic capabilities if missing.
-func (r *Repository) EnsureModelIntrinsic(ctx context.Context, entryID string, supportsStreaming, supportsToolCalling, supportsStructuredOutput, supportsVision bool, inputModalities, outputModalities []string, source string, asOf int64) error {
+// EnsureModelCapabilities inserts model capabilities if missing.
+func (r *Repository) EnsureModelCapabilities(ctx context.Context, entryID string, supportsStreaming, supportsToolCalling, supportsStructuredOutput, supportsVision bool, inputModalities, outputModalities []string, source string, asOf int64) error {
 
 	if r == nil || r.db == nil {
 		return fmt.Errorf("catalog repo: db required")
@@ -873,19 +960,17 @@ func (r *Repository) EnsureModelIntrinsic(ctx context.Context, entryID string, s
 		return fmt.Errorf("catalog repo: model entry id required")
 	}
 
-	var existing string
-	err := r.db.QueryRowContext(ctx, `SELECT model_catalog_entry_id FROM model_intrinsic WHERE model_catalog_entry_id = ?`, entryID).Scan(&existing)
-	if err == nil {
-		return nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("catalog repo: check intrinsic: %w", err)
-	}
-
 	return withTx(r.db, func(tx *sql.Tx) error {
 		_, err := tx.Exec(
-			`INSERT INTO model_intrinsic (model_catalog_entry_id, supports_streaming, supports_tool_calling, supports_structured_output, supports_vision, intrinsic_source, intrinsic_as_of)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			`INSERT INTO model_capabilities (model_catalog_entry_id, supports_streaming, supports_tool_calling, supports_structured_output, supports_vision, capabilities_source, capabilities_as_of)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(model_catalog_entry_id) DO UPDATE SET
+               supports_streaming = excluded.supports_streaming,
+               supports_tool_calling = excluded.supports_tool_calling,
+               supports_structured_output = excluded.supports_structured_output,
+               supports_vision = excluded.supports_vision,
+               capabilities_source = excluded.capabilities_source,
+               capabilities_as_of = excluded.capabilities_as_of`,
 			entryID,
 			boolToInt(supportsStreaming),
 			boolToInt(supportsToolCalling),
@@ -895,13 +980,13 @@ func (r *Repository) EnsureModelIntrinsic(ctx context.Context, entryID string, s
 			asOf,
 		)
 		if err != nil {
-			return fmt.Errorf("catalog repo: insert intrinsic: %w", err)
+			return fmt.Errorf("catalog repo: insert capabilities: %w", err)
 		}
 
-		if err := replaceModalities(tx, "model_intrinsic_input_modalities", entryID, inputModalities); err != nil {
+		if err := replaceModalities(tx, "model_capabilities_input_modalities", entryID, inputModalities); err != nil {
 			return err
 		}
-		if err := replaceModalities(tx, "model_intrinsic_output_modalities", entryID, outputModalities); err != nil {
+		if err := replaceModalities(tx, "model_capabilities_output_modalities", entryID, outputModalities); err != nil {
 			return err
 		}
 		return nil
@@ -918,19 +1003,16 @@ func (r *Repository) EnsureModelSystemProfile(ctx context.Context, entryID strin
 		return fmt.Errorf("catalog repo: model entry id required")
 	}
 
-	var existing string
-	err := r.db.QueryRowContext(ctx, `SELECT model_catalog_entry_id FROM model_system_profile WHERE model_catalog_entry_id = ?`, entryID).Scan(&existing)
-	if err == nil {
-		return nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("catalog repo: check system profile: %w", err)
-	}
-
-	_, err = r.db.ExecContext(
+	_, err := r.db.ExecContext(
 		ctx,
 		`INSERT INTO model_system_profile (model_catalog_entry_id, latency_tier, cost_tier, reliability_tier, system_profile_source, system_profile_as_of)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(model_catalog_entry_id) DO UPDATE SET
+           latency_tier = excluded.latency_tier,
+           cost_tier = excluded.cost_tier,
+           reliability_tier = excluded.reliability_tier,
+           system_profile_source = excluded.system_profile_source,
+           system_profile_as_of = excluded.system_profile_as_of`,
 		entryID,
 		latencyTier,
 		costTier,
@@ -954,20 +1036,12 @@ func (r *Repository) EnsureModelUserAddenda(ctx context.Context, entryID string)
 		return fmt.Errorf("catalog repo: model entry id required")
 	}
 
-	var existing string
-	err := r.db.QueryRowContext(ctx, `SELECT model_catalog_entry_id FROM model_user_addenda WHERE model_catalog_entry_id = ?`, entryID).Scan(&existing)
-	if err == nil {
-		return nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("catalog repo: check user addenda: %w", err)
-	}
-
 	now := time.Now().UnixMilli()
-	_, err = r.db.ExecContext(
+	_, err := r.db.ExecContext(
 		ctx,
 		`INSERT INTO model_user_addenda (model_catalog_entry_id, notes, user_addenda_source, user_addenda_as_of)
-         VALUES (?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(model_catalog_entry_id) DO NOTHING`,
 		entryID,
 		"",
 		"manual",
@@ -979,8 +1053,8 @@ func (r *Repository) EnsureModelUserAddenda(ctx context.Context, entryID string)
 	return nil
 }
 
-// LoadModelIntrinsic returns intrinsic capabilities and modalities.
-type ModelIntrinsicRecord struct {
+// ModelCapabilitiesRecord holds model capabilities and modalities.
+type ModelCapabilitiesRecord struct {
 	SupportsStreaming        bool
 	SupportsToolCalling      bool
 	SupportsStructuredOutput bool
@@ -1020,49 +1094,88 @@ func (r *Repository) GetModelEffectiveCostTier(ctx context.Context, entryID stri
 	return "", nil
 }
 
-// GetModelIntrinsic loads intrinsic capabilities for a model entry.
-func (r *Repository) GetModelIntrinsic(ctx context.Context, entryID string) (ModelIntrinsicRecord, error) {
+// GetModelCapabilities loads model capabilities for a model entry.
+func (r *Repository) GetModelCapabilities(ctx context.Context, entryID string) (ModelCapabilitiesRecord, error) {
 
 	if r == nil || r.db == nil {
-		return ModelIntrinsicRecord{}, fmt.Errorf("catalog repo: db required")
+		return ModelCapabilitiesRecord{}, fmt.Errorf("catalog repo: db required")
 	}
 
-	var record ModelIntrinsicRecord
+	var record ModelCapabilitiesRecord
 	var supportsStreaming, supportsToolCalling, supportsStructuredOutput, supportsVision int
 	err := r.db.QueryRowContext(
 		ctx,
-		`SELECT supports_streaming, supports_tool_calling, supports_structured_output, supports_vision FROM model_intrinsic WHERE model_catalog_entry_id = ?`,
+		`SELECT supports_streaming, supports_tool_calling, supports_structured_output, supports_vision FROM model_capabilities WHERE model_catalog_entry_id = ?`,
 		entryID,
 	).Scan(&supportsStreaming, &supportsToolCalling, &supportsStructuredOutput, &supportsVision)
 	if errors.Is(err, sql.ErrNoRows) {
-		return ModelIntrinsicRecord{}, nil
+		return ModelCapabilitiesRecord{}, nil
 	}
 	if err != nil {
-		return ModelIntrinsicRecord{}, fmt.Errorf("catalog repo: get intrinsic: %w", err)
+		return ModelCapabilitiesRecord{}, fmt.Errorf("catalog repo: get capabilities: %w", err)
 	}
 	record.SupportsStreaming = supportsStreaming == 1
 	record.SupportsToolCalling = supportsToolCalling == 1
 	record.SupportsStructuredOutput = supportsStructuredOutput == 1
 	record.SupportsVision = supportsVision == 1
 
-	inputModalities, err := loadModalities(r.db, "model_intrinsic_input_modalities", entryID)
+	inputModalities, err := loadModalities(r.db, "model_capabilities_input_modalities", "model_catalog_entry_id", entryID)
 	if err != nil {
-		return ModelIntrinsicRecord{}, err
+		return ModelCapabilitiesRecord{}, err
 	}
-	outputModalities, err := loadModalities(r.db, "model_intrinsic_output_modalities", entryID)
+	outputModalities, err := loadModalities(r.db, "model_capabilities_output_modalities", "model_catalog_entry_id", entryID)
 	if err != nil {
-		return ModelIntrinsicRecord{}, err
+		return ModelCapabilitiesRecord{}, err
 	}
 	record.InputModalities = inputModalities
 	record.OutputModalities = outputModalities
 	return record, nil
 }
 
-// ListModelSummaries returns model entries with intrinsic capabilities.
+// ModelSummaryRecord returns model entries with capabilities.
 type ModelSummaryRecord struct {
 	ModelEntryRecord
-	ModelIntrinsicRecord
+	ModelCapabilitiesRecord
 	CostTier string
+}
+
+// ListModelSystemTags returns system tags grouped by model entry id.
+func (r *Repository) ListModelSystemTags(ctx context.Context) (map[string][]string, error) {
+
+	if r == nil || r.db == nil {
+		return nil, fmt.Errorf("catalog repo: db required")
+	}
+
+	rows, err := r.db.QueryContext(ctx, `SELECT model_catalog_entry_id, tag FROM model_system_tags ORDER BY model_catalog_entry_id, tag`)
+	if err != nil {
+		return nil, fmt.Errorf("catalog repo: list model system tags: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	tagsByEntryID := make(map[string][]string)
+	for rows.Next() {
+		var entryID string
+		var tag string
+		if err := rows.Scan(&entryID, &tag); err != nil {
+			return nil, fmt.Errorf("catalog repo: list model system tags scan: %w", err)
+		}
+		tagsByEntryID[entryID] = append(tagsByEntryID[entryID], tag)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("catalog repo: list model system tags rows: %w", err)
+	}
+
+	return tagsByEntryID, nil
+}
+
+type endpointAuthPayload struct {
+	CredentialFields []endpointAuthCredentialField `json:"credential_fields,omitempty"`
+}
+
+type endpointAuthCredentialField struct {
+	Name     string `json:"name"`
+	Required bool   `json:"required"`
+	Secret   bool   `json:"secret"`
 }
 
 // ListModelSummaries returns models with intrinsic metadata.
@@ -1072,13 +1185,12 @@ func (r *Repository) ListModelSummaries(ctx context.Context) ([]ModelSummaryReco
 		return nil, fmt.Errorf("catalog repo: db required")
 	}
 
-	rows, err := r.db.QueryContext(ctx, `SELECT id, endpoint_id, model_id, display_name, first_seen_at, last_seen_at, availability_state, approved, missed_refreshes, metadata_json FROM model_catalog_entries ORDER BY model_id`)
+	rows, err := r.db.QueryContext(ctx, `SELECT id, endpoint_id, model_id, display_name, first_seen_at, last_seen_at, availability_state, approved, missed_refreshes, source, metadata_json FROM model_catalog_entries ORDER BY model_id`)
 	if err != nil {
 		return nil, fmt.Errorf("catalog repo: list model summaries: %w", err)
 	}
-	defer rows.Close()
 
-	var summaries []ModelSummaryRecord
+	entries := make([]ModelEntryRecord, 0)
 	for rows.Next() {
 		var entry ModelEntryRecord
 		var approved int
@@ -1092,12 +1204,29 @@ func (r *Repository) ListModelSummaries(ctx context.Context) ([]ModelSummaryReco
 			&entry.AvailabilityState,
 			&approved,
 			&entry.MissedRefreshes,
+			&entry.Source,
 			&entry.MetadataJSON,
 		); err != nil {
+			_ = rows.Close()
 			return nil, fmt.Errorf("catalog repo: list model summaries scan: %w", err)
 		}
 		entry.Approved = approved == 1
-		intrinsic, err := r.GetModelIntrinsic(ctx, entry.ID)
+		entries = append(entries, entry)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, fmt.Errorf("catalog repo: list model summaries rows: %w", err)
+	}
+
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("catalog repo: list model summaries close: %w", err)
+	}
+
+	// Load per-model details only after closing the result cursor to avoid blocking
+	// when the datastore is configured with a single open SQLite connection.
+	summaries := make([]ModelSummaryRecord, 0, len(entries))
+	for _, entry := range entries {
+		capabilities, err := r.GetModelCapabilities(ctx, entry.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -1106,14 +1235,12 @@ func (r *Repository) ListModelSummaries(ctx context.Context) ([]ModelSummaryReco
 			return nil, err
 		}
 		summaries = append(summaries, ModelSummaryRecord{
-			ModelEntryRecord:     entry,
-			ModelIntrinsicRecord: intrinsic,
-			CostTier:             costTier,
+			ModelEntryRecord:        entry,
+			ModelCapabilitiesRecord: capabilities,
+			CostTier:                costTier,
 		})
 	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("catalog repo: list model summaries rows: %w", err)
-	}
+
 	return summaries, nil
 }
 
@@ -1189,11 +1316,11 @@ func (r *Repository) GetRoleByID(ctx context.Context, roleID string) (RoleRecord
 		return RoleRecord{}, err
 	}
 
-	inputModalities, err := loadModalities(r.db, "role_required_input_modalities", record.ID)
+	inputModalities, err := loadModalities(r.db, "role_required_input_modalities", "role_id", record.ID)
 	if err != nil {
 		return RoleRecord{}, err
 	}
-	outputModalities, err := loadModalities(r.db, "role_required_output_modalities", record.ID)
+	outputModalities, err := loadModalities(r.db, "role_required_output_modalities", "role_id", record.ID)
 	if err != nil {
 		return RoleRecord{}, err
 	}
@@ -1218,11 +1345,11 @@ func (r *Repository) GetRoleByName(ctx context.Context, name string) (RoleRecord
 		return RoleRecord{}, err
 	}
 
-	inputModalities, err := loadModalities(r.db, "role_required_input_modalities", record.ID)
+	inputModalities, err := loadModalities(r.db, "role_required_input_modalities", "role_id", record.ID)
 	if err != nil {
 		return RoleRecord{}, err
 	}
-	outputModalities, err := loadModalities(r.db, "role_required_output_modalities", record.ID)
+	outputModalities, err := loadModalities(r.db, "role_required_output_modalities", "role_id", record.ID)
 	if err != nil {
 		return RoleRecord{}, err
 	}
@@ -1242,7 +1369,7 @@ func (r *Repository) ListRoles(ctx context.Context) ([]RoleRecord, error) {
 	if err != nil {
 		return nil, fmt.Errorf("catalog repo: list roles: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var roles []RoleRecord
 	for rows.Next() {
@@ -1250,11 +1377,11 @@ func (r *Repository) ListRoles(ctx context.Context) ([]RoleRecord, error) {
 		if err != nil {
 			return nil, err
 		}
-		inputModalities, err := loadModalities(r.db, "role_required_input_modalities", record.ID)
+		inputModalities, err := loadModalities(r.db, "role_required_input_modalities", "role_id", record.ID)
 		if err != nil {
 			return nil, err
 		}
-		outputModalities, err := loadModalities(r.db, "role_required_output_modalities", record.ID)
+		outputModalities, err := loadModalities(r.db, "role_required_output_modalities", "role_id", record.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -1296,7 +1423,7 @@ func (r *Repository) ListRoleAssignments(ctx context.Context) ([]RoleAssignmentR
 	if err != nil {
 		return nil, fmt.Errorf("catalog repo: list role assignments: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var assignments []RoleAssignmentRecord
 	for rows.Next() {
@@ -1372,7 +1499,7 @@ func (r *Repository) ListModelLabels(ctx context.Context) (map[string]string, er
 	if err != nil {
 		return nil, fmt.Errorf("catalog repo: list model labels: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	labels := make(map[string]string)
 	for rows.Next() {
@@ -1399,6 +1526,41 @@ func MarshalAuthJSON(data map[string]interface{}) (string, error) {
 		return "", fmt.Errorf("catalog repo: encode auth json: %w", err)
 	}
 	return string(payload), nil
+}
+
+// sanitizeEndpointAuthJSON validates and normalizes endpoint auth metadata shape.
+func sanitizeEndpointAuthJSON(raw string) (string, error) {
+
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", nil
+	}
+
+	decoder := json.NewDecoder(strings.NewReader(trimmed))
+	decoder.DisallowUnknownFields()
+	var payload endpointAuthPayload
+	if err := decoder.Decode(&payload); err != nil {
+		return "", fmt.Errorf("catalog repo: invalid auth metadata: %w", err)
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return "", fmt.Errorf("catalog repo: invalid auth metadata: trailing content")
+	}
+
+	for i := range payload.CredentialFields {
+		payload.CredentialFields[i].Name = strings.TrimSpace(payload.CredentialFields[i].Name)
+		if payload.CredentialFields[i].Name == "" {
+			return "", fmt.Errorf("catalog repo: auth metadata credential field name required")
+		}
+		if providercore.IsSensitiveCredentialName(payload.CredentialFields[i].Name) && !payload.CredentialFields[i].Secret {
+			return "", fmt.Errorf("catalog repo: credential field %q must be marked secret", payload.CredentialFields[i].Name)
+		}
+	}
+
+	normalized, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("catalog repo: encode auth metadata: %w", err)
+	}
+	return string(normalized), nil
 }
 
 func newUUID() string {
@@ -1465,13 +1627,13 @@ func replaceModalities(tx *sql.Tx, table string, entryID string, modalities []st
 	return nil
 }
 
-func loadModalities(db *sql.DB, table string, entryID string) ([]string, error) {
+func loadModalities(db *sql.DB, table, keyColumn, keyValue string) ([]string, error) {
 
-	rows, err := db.Query(fmt.Sprintf("SELECT modality FROM %s WHERE model_catalog_entry_id = ? ORDER BY modality", table), entryID)
+	rows, err := db.Query(fmt.Sprintf("SELECT modality FROM %s WHERE %s = ? ORDER BY modality", table, keyColumn), keyValue)
 	if err != nil {
 		return nil, fmt.Errorf("catalog repo: load modalities: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	modalities := []string{}
 	for rows.Next() {

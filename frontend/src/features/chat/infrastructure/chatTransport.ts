@@ -24,7 +24,11 @@ import {
  * create a new conversation in the backend.
  */
 export async function createConversation(provider: string, model: string): Promise<Conversation> {
-    return CreateConversation(provider, model);
+    const conversation = await CreateConversation(provider, model);
+    if (!conversation || !conversation.id) {
+        throw new Error('Failed to create conversation');
+    }
+    return conversation;
 }
 
 /**

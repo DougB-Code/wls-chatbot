@@ -5,7 +5,7 @@
 
 import type { ChatEvent, ConversationTitlePayload, StreamChunkPayload } from '../../../types/events';
 import type { Message } from '../../../types';
-import { onEvent, offEvent } from '../../../core/infrastructure/wails/events';
+import { onEvent, type EventUnsubscribe } from '../../../core/infrastructure/wails/events';
 import {
     appendStreamChunk,
     finalizeMessage,
@@ -19,6 +19,7 @@ import {
 import { log } from '../../../lib/logger';
 
 let chatEventsInitialized = false;
+let unsubscribeChatEvents: EventUnsubscribe | null = null;
 
 /**
  * attach backend chat event listeners.
@@ -26,7 +27,7 @@ let chatEventsInitialized = false;
 export function initChatEvents(): void {
     if (chatEventsInitialized) return;
     chatEventsInitialized = true;
-    onEvent<ChatEvent>('chat:event', (event) => {
+    unsubscribeChatEvents = onEvent<ChatEvent>('chat:event', (event) => {
         handleChatEvent(event);
     });
 }
@@ -37,7 +38,10 @@ export function initChatEvents(): void {
 export function teardownChatEvents(): void {
     if (!chatEventsInitialized) return;
     chatEventsInitialized = false;
-    offEvent('chat:event');
+    if (unsubscribeChatEvents) {
+        unsubscribeChatEvents();
+        unsubscribeChatEvents = null;
+    }
 }
 
 /**

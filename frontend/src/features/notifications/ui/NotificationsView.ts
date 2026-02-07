@@ -10,6 +10,7 @@ import { SignalWatcher } from '@lit-labs/preact-signals';
 import { notifications } from '../state/notificationSignals';
 import { clearAllNotifications, deleteNotification, refreshNotifications } from '../application/notificationPolicy';
 import type { Notification } from '../../../types/wails';
+import { log } from '../../../lib/logger';
 
 /**
  * render stored notifications for the workspace.
@@ -165,7 +166,10 @@ export class NotificationsView extends SignalWatcher(LitElement) {
      */
     connectedCallback() {
         super.connectedCallback();
-        void refreshNotifications().catch(() => undefined);
+        void refreshNotifications().catch((err) => {
+            const message = err instanceof Error ? err.message : 'Unknown notifications refresh error';
+            log.warn().str('error', message).msg('Failed to refresh notifications view');
+        });
     }
 
     /**
@@ -260,7 +264,10 @@ export class NotificationsView extends SignalWatcher(LitElement) {
      */
     private _handleDeleteGroup(ids: number[]) {
         for (const id of ids) {
-            void deleteNotification(id).catch(() => undefined);
+            void deleteNotification(id).catch((err) => {
+                const message = err instanceof Error ? err.message : 'Unknown notification delete error';
+                log.warn().str('error', message).str('notificationId', String(id)).msg('Failed to delete notification');
+            });
         }
     }
 
@@ -268,7 +275,10 @@ export class NotificationsView extends SignalWatcher(LitElement) {
      * clear all notifications.
      */
     private _handleClearAll() {
-        void clearAllNotifications().catch(() => undefined);
+        void clearAllNotifications().catch((err) => {
+            const message = err instanceof Error ? err.message : 'Unknown clear notifications error';
+            log.warn().str('error', message).msg('Failed to clear notifications');
+        });
     }
 
     /**

@@ -42,6 +42,14 @@ export function DisconnectProvider(arg1) {
   return window['go']['wails']['Bridge']['DisconnectProvider'](arg1);
 }
 
+export function EditImage(arg1) {
+  return window['go']['wails']['Bridge']['EditImage'](arg1);
+}
+
+export function GenerateImage(arg1) {
+  return window['go']['wails']['Bridge']['GenerateImage'](arg1);
+}
+
 export function GetActiveConversation() {
   return window['go']['wails']['Bridge']['GetActiveConversation']();
 }
@@ -62,6 +70,10 @@ export function GetProviders() {
   return window['go']['wails']['Bridge']['GetProviders']();
 }
 
+export function ImportModels(arg1) {
+  return window['go']['wails']['Bridge']['ImportModels'](arg1);
+}
+
 export function ListConversations() {
   return window['go']['wails']['Bridge']['ListConversations']();
 }
@@ -70,12 +82,20 @@ export function ListDeletedConversations() {
   return window['go']['wails']['Bridge']['ListDeletedConversations']();
 }
 
+export function ListModels(arg1) {
+  return window['go']['wails']['Bridge']['ListModels'](arg1);
+}
+
 export function ListNotifications() {
   return window['go']['wails']['Bridge']['ListNotifications']();
 }
 
 export function PurgeConversation(arg1) {
   return window['go']['wails']['Bridge']['PurgeConversation'](arg1);
+}
+
+export function QueryModels(arg1) {
+  return window['go']['wails']['Bridge']['QueryModels'](arg1);
 }
 
 export function RefreshCatalogEndpoint(arg1) {
@@ -108,6 +128,10 @@ export function SetActiveProvider(arg1) {
 
 export function StopStream() {
   return window['go']['wails']['Bridge']['StopStream']();
+}
+
+export function SyncModels() {
+  return window['go']['wails']['Bridge']['SyncModels']();
 }
 
 export function TestCatalogEndpoint(arg1) {

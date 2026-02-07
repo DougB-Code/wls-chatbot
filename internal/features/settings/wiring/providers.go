@@ -1,4 +1,4 @@
-// build provider instances from application configuration.
+// providers.go builds provider instances from application configuration.
 // internal/features/settings/wiring/providers.go
 package wiring
 
@@ -7,14 +7,21 @@ import (
 	"strings"
 
 	coreports "github.com/MadeByDoug/wls-chatbot/internal/core/ports"
-	provideradapter "github.com/MadeByDoug/wls-chatbot/internal/features/settings/adapters/provider"
+	anthropicadapter "github.com/MadeByDoug/wls-chatbot/internal/features/providers/adapters/anthropic"
+	cloudflareadapter "github.com/MadeByDoug/wls-chatbot/internal/features/providers/adapters/cloudflare"
+	geminiadapter "github.com/MadeByDoug/wls-chatbot/internal/features/providers/adapters/gemini"
+	grokadapter "github.com/MadeByDoug/wls-chatbot/internal/features/providers/adapters/grok"
+	openaiadapter "github.com/MadeByDoug/wls-chatbot/internal/features/providers/adapters/openai"
+	openrouteradapter "github.com/MadeByDoug/wls-chatbot/internal/features/providers/adapters/openrouter"
+	providerregistry "github.com/MadeByDoug/wls-chatbot/internal/features/providers/core/registry"
 	"github.com/MadeByDoug/wls-chatbot/internal/features/settings/config"
-	"github.com/MadeByDoug/wls-chatbot/internal/features/settings/ports"
+	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/providers/interfaces/core"
 	providerusecase "github.com/MadeByDoug/wls-chatbot/internal/features/settings/usecase"
 )
 
 // LoadProvidersFromStore loads providers from configuration storage.
-func LoadProvidersFromStore(store config.Store, secrets ports.SecretStore) ([]ports.Provider, error) {
+func LoadProvidersFromStore(store config.Store, secrets providercore.SecretStore) ([]providercore.Provider, error) {
+
 	cfg, err := config.LoadConfig(store)
 	if err != nil {
 		return nil, err
@@ -23,13 +30,14 @@ func LoadProvidersFromStore(store config.Store, secrets ports.SecretStore) ([]po
 }
 
 // ProvidersFromConfig constructs providers from configuration.
-func ProvidersFromConfig(cfg config.AppConfig, secrets ports.SecretStore, logger coreports.Logger) ([]ports.Provider, error) {
-	providers := make([]ports.Provider, 0, len(cfg.Providers))
+func ProvidersFromConfig(cfg config.AppConfig, secrets providercore.SecretStore, logger coreports.Logger) ([]providercore.Provider, error) {
+
+	providers := make([]providercore.Provider, 0, len(cfg.Providers))
 	for _, p := range cfg.Providers {
 		credentials := buildProviderCredentials(p, secrets)
-		apiKey := strings.TrimSpace(credentials[provideradapter.CredentialAPIKey])
+		apiKey := strings.TrimSpace(credentials[providercore.CredentialAPIKey])
 		enabledModels := ResolveEnabledModelsFromConfig(cfg, p.Name, p.DefaultModel)
-		providerConfig := provideradapter.Config{
+		providerConfig := providercore.ProviderConfig{
 			Name:         p.Name,
 			DisplayName:  p.DisplayName,
 			APIKey:       apiKey,
@@ -41,15 +49,17 @@ func ProvidersFromConfig(cfg config.AppConfig, secrets ports.SecretStore, logger
 		}
 		switch p.Type {
 		case "openai":
-			providers = append(providers, provideradapter.NewOpenAI(providerConfig))
+			providers = append(providers, openaiadapter.New(providerConfig))
 		case "anthropic":
-			providers = append(providers, provideradapter.NewAnthropic(providerConfig))
+			providers = append(providers, anthropicadapter.New(providerConfig))
 		case "gemini":
-			providers = append(providers, provideradapter.NewGemini(providerConfig))
+			providers = append(providers, geminiadapter.New(providerConfig))
+		case "grok":
+			providers = append(providers, grokadapter.New(providerConfig))
 		case "cloudflare":
-			providers = append(providers, provideradapter.NewCloudflare(providerConfig))
+			providers = append(providers, cloudflareadapter.New(providerConfig))
 		case "openrouter":
-			providers = append(providers, provideradapter.NewOpenRouter(providerConfig))
+			providers = append(providers, openrouteradapter.New(providerConfig))
 		default:
 			return nil, fmt.Errorf("unknown provider type: %s", p.Type)
 		}
@@ -58,9 +68,9 @@ func ProvidersFromConfig(cfg config.AppConfig, secrets ports.SecretStore, logger
 }
 
 // buildProviderCredentials merges config inputs with stored secrets.
-func buildProviderCredentials(cfg config.ProviderConfig, secrets ports.SecretStore) provideradapter.ProviderCredentials {
+func buildProviderCredentials(cfg config.ProviderConfig, secrets providercore.SecretStore) providercore.ProviderCredentials {
 
-	credentials := make(provideradapter.ProviderCredentials)
+	credentials := make(providercore.ProviderCredentials)
 	for key, value := range cfg.Inputs {
 		if strings.TrimSpace(value) == "" {
 			continue
@@ -87,15 +97,15 @@ func buildProviderCredentials(cfg config.ProviderConfig, secrets ports.SecretSto
 func providerSecretFields(providerType string) []string {
 
 	switch providerType {
-	case "openai", "anthropic", "gemini":
-		return []string{provideradapter.CredentialAPIKey}
+	case "openai", "anthropic", "gemini", "grok":
+		return []string{providercore.CredentialAPIKey}
 	case "openrouter":
-		return []string{provideradapter.CredentialAPIKey}
+		return []string{providercore.CredentialAPIKey}
 	case "cloudflare":
 		return []string{
-			provideradapter.CredentialCloudflareToken,
-			provideradapter.CredentialAPIKey,
-			provideradapter.CredentialToken,
+			providercore.CredentialCloudflareToken,
+			providercore.CredentialAPIKey,
+			providercore.CredentialToken,
 		}
 	default:
 		return nil
@@ -103,8 +113,9 @@ func providerSecretFields(providerType string) []string {
 }
 
 // BuildProviderService wires provider adapters into the provider use case.
-func BuildProviderService(cfg config.AppConfig, cache ports.ProviderCache, secrets ports.SecretStore, inputs ports.ProviderInputsStore, logger coreports.Logger) (*providerusecase.Service, ports.ProviderRegistry, error) {
-	registry := provideradapter.NewRegistry()
+func BuildProviderService(cfg config.AppConfig, cache providercore.ProviderCache, secrets providercore.SecretStore, inputs providercore.ProviderInputsStore, logger coreports.Logger) (*providerusecase.Service, providercore.ProviderRegistry, error) {
+
+	registry := providerregistry.New()
 	providerConfigs, providerErr := ProvidersFromConfig(cfg, secrets, logger)
 	if providerErr == nil {
 		for _, p := range providerConfigs {

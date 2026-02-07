@@ -315,7 +315,7 @@ export class MessageBubble extends LitElement {
         if (!navigator.clipboard) {
             return;
         }
-        void navigator.clipboard.writeText(content).catch(() => {});
+        void navigator.clipboard.writeText(content).catch(() => undefined);
     }
 
     /**

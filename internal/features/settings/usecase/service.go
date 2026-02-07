@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/providers/interfaces/core"
 )
 
 // Info represents provider information for the frontend.
@@ -52,6 +54,7 @@ type Service struct {
 	inputsStore       InputsStore
 	secrets           SecretStore
 	logger            Logger
+	providerOpsMu     sync.Mutex
 }
 
 // validateProvider tests connectivity and updates resources when supported.
@@ -335,6 +338,9 @@ func (s *Service) persistCredentials(name string, fields []CredentialField, inpu
 			}
 			secretUpdates[field.Name] = trimmed
 		} else {
+			if providercore.IsSensitiveCredentialName(field.Name) {
+				return fmt.Errorf("credential field %q must be stored as secret", field.Name)
+			}
 			if inputUpdates == nil {
 				inputUpdates = make(ProviderCredentials)
 			}
@@ -391,17 +397,6 @@ func (s *Service) isProviderConfigured(name string, fields []CredentialField) bo
 
 	credentials := mergeCredentialValues(s.loadProviderInputs(name), s.loadProviderSecrets(name, fields))
 	return validateRequiredCredentials(fields, credentials) == nil
-}
-
-// applyStoredCredentials updates a provider with stored credentials.
-func (s *Service) applyStoredCredentials(name string, p Provider) {
-
-	fields := s.providerCredentialFields(p)
-	credentials := mergeCredentialValues(s.loadProviderInputs(name), s.loadProviderSecrets(name, fields))
-	if len(credentials) == 0 {
-		return
-	}
-	_ = p.Configure(Config{Credentials: credentials})
 }
 
 // refreshResourcesIfStale launches a background refresh when cache is outdated.
@@ -482,15 +477,36 @@ func (s *Service) clearRefreshing(name string) {
 	delete(s.refreshing, name)
 }
 
-// ensureProviderConfigured applies stored credentials to a provider.
-func (s *Service) ensureProviderConfigured(name string) {
+// ensureProviderConfiguredLocked applies stored credentials while providerOpsMu is held.
+func (s *Service) ensureProviderConfiguredLocked(name string) error {
 
 	if s.registry == nil {
-		return
+		return nil
 	}
-	if p := s.registry.Get(name); p != nil {
-		s.applyStoredCredentials(name, p)
+	p := s.registry.Get(name)
+	if p == nil {
+		return fmt.Errorf("provider not found: %s", name)
 	}
+	fields := s.providerCredentialFields(p)
+	resolved, err := s.resolveCredentials(name, fields, nil)
+	if err != nil {
+		return err
+	}
+	if len(resolved) == 0 {
+		return nil
+	}
+	if err := p.Configure(Config{Credentials: resolved}); err != nil {
+		return err
+	}
+	return nil
+}
+
+// EnsureProviderConfigured applies persisted credentials for a provider under serialization lock.
+func (s *Service) EnsureProviderConfigured(name string) error {
+
+	s.providerOpsMu.Lock()
+	defer s.providerOpsMu.Unlock()
+	return s.ensureProviderConfiguredLocked(name)
 }
 
 // List returns all available providers with their status.
@@ -504,9 +520,11 @@ func (s *Service) List() []Info {
 
 	info := make([]Info, len(providers))
 	for i, p := range providers {
-		// Trigger background refresh without blocking
-		go s.refreshResourcesIfStale(p.Name())
+		// Trigger stale-check; method schedules background refresh only when needed.
+		s.refreshResourcesIfStale(p.Name())
 		fields := s.providerCredentialFields(p)
+		isConfigured := s.isProviderConfigured(p.Name(), fields)
+		hasHealthyStatus := s.hasSuccessfulStatus(p.Name())
 		// Skip loading inputs during list to avoid blocking - credentials are only needed on connect/configure
 		info[i] = Info{
 			Name:             p.Name(),
@@ -515,7 +533,7 @@ func (s *Service) List() []Info {
 			CredentialValues: nil, // Load on demand, not during list
 			Models:           p.Models(),
 			Resources:        s.GetResources(p.Name()),
-			IsConnected:      s.hasSuccessfulStatus(p.Name()), // Use cached status instead of blocking keyring check
+			IsConnected:      isConfigured || hasHealthyStatus,
 			IsActive:         active != nil && active.Name() == p.Name(),
 			Status:           s.GetStatus(p.Name()),
 		}
@@ -523,9 +541,11 @@ func (s *Service) List() []Info {
 	return info
 }
 
-
 // Connect configures, validates, and persists a provider connection.
 func (s *Service) Connect(ctx context.Context, name string, credentials ProviderCredentials) (Info, error) {
+
+	s.providerOpsMu.Lock()
+	defer s.providerOpsMu.Unlock()
 
 	s.logInfo("Connecting provider", LogField{Key: "provider", Value: name})
 	p := s.registry.Get(name)
@@ -550,6 +570,9 @@ func (s *Service) Connect(ctx context.Context, name string, credentials Provider
 		return Info{}, err
 	}
 
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	// Use a timeout for the connection test/list
 	ctx, cancel := context.WithTimeout(ctx, 12*time.Second)
 	defer cancel()
@@ -597,6 +620,9 @@ func (s *Service) Connect(ctx context.Context, name string, credentials Provider
 // Disconnect removes a provider's credentials and resets its state.
 func (s *Service) Disconnect(name string) error {
 
+	s.providerOpsMu.Lock()
+	defer s.providerOpsMu.Unlock()
+
 	s.logInfo("Disconnecting provider", LogField{Key: "provider", Value: name})
 	fields := s.providerCredentialFields(s.registry.Get(name))
 	if err := s.clearStoredCredentials(name, fields); err != nil {
@@ -625,7 +651,9 @@ func (s *Service) Disconnect(name string) error {
 		if nextActive == "" {
 			_ = s.registry.SetActive("")
 		} else if s.registry.SetActive(nextActive) {
-			s.ensureProviderConfigured(nextActive)
+			if err := s.ensureProviderConfiguredLocked(nextActive); err != nil {
+				_ = s.registry.SetActive("")
+			}
 		} else {
 			_ = s.registry.SetActive("")
 		}
@@ -674,6 +702,9 @@ func (s *Service) selectNextActiveProvider(disconnected string) string {
 
 // Configure updates and persists provider credentials while refreshing status.
 func (s *Service) Configure(name string, credentials ProviderCredentials) error {
+
+	s.providerOpsMu.Lock()
+	defer s.providerOpsMu.Unlock()
 
 	s.logInfo("Configuring provider", LogField{Key: "provider", Value: name})
 	p := s.registry.Get(name)
@@ -734,12 +765,23 @@ func (s *Service) Configure(name string, credentials ProviderCredentials) error 
 // SetActive sets the active provider.
 func (s *Service) SetActive(name string) bool {
 
+	s.providerOpsMu.Lock()
+	defer s.providerOpsMu.Unlock()
+
 	s.logInfo("Setting active provider", LogField{Key: "provider", Value: name})
 	return s.registry.SetActive(name)
 }
 
 // TestConnection tests the connection to a provider.
 func (s *Service) TestConnection(ctx context.Context, name string) error {
+
+	s.providerOpsMu.Lock()
+	defer s.providerOpsMu.Unlock()
+	return s.testConnectionLocked(ctx, name)
+}
+
+// testConnectionLocked tests provider connectivity while providerOpsMu is held.
+func (s *Service) testConnectionLocked(ctx context.Context, name string) error {
 
 	p := s.registry.Get(name)
 	if p == nil {
@@ -757,6 +799,9 @@ func (s *Service) TestConnection(ctx context.Context, name string) error {
 		s.SetStatus(name, false, err.Error())
 		return err
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	if err := p.TestConnection(ctx); err != nil {
@@ -771,7 +816,18 @@ func (s *Service) TestConnection(ctx context.Context, name string) error {
 // RefreshResources fetches the latest resources from the provider.
 func (s *Service) RefreshResources(ctx context.Context, name string) error {
 
+	s.providerOpsMu.Lock()
+	defer s.providerOpsMu.Unlock()
+
 	s.logDebug("Refreshing resources", LogField{Key: "provider", Value: name})
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		timeoutCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
+		defer cancel()
+		ctx = timeoutCtx
+	}
 	p := s.registry.Get(name)
 	if p == nil {
 		err := fmt.Errorf("provider not found: %s", name)
@@ -805,7 +861,7 @@ func (s *Service) RefreshResources(ctx context.Context, name string) error {
 		s.SetStatus(name, true, "")
 		return nil
 	}
-	if err := s.TestConnection(ctx, name); err != nil {
+	if err := s.testConnectionLocked(ctx, name); err != nil {
 		return err
 	}
 	return nil

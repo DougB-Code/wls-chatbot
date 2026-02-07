@@ -24,12 +24,14 @@ func NewService(repo Repository) *Service {
 }
 
 // CreateConversation creates a new conversation with the given settings.
-func (s *Service) CreateConversation(settings ConversationSettings) *Conversation {
+func (s *Service) CreateConversation(settings ConversationSettings) (*Conversation, error) {
 
 	conv := NewConversation(settings)
-	s.repo.Create(conv)
+	if err := s.repo.Create(conv); err != nil {
+		return nil, err
+	}
 	s.SetActiveConversation(conv.ID)
-	return conv
+	return conv, nil
 }
 
 // SetActiveConversation marks a conversation as active.
@@ -52,7 +54,10 @@ func (s *Service) ActiveConversationID() string {
 // GetConversation retrieves a conversation by ID.
 func (s *Service) GetConversation(id string) *Conversation {
 
-	conv, _ := s.repo.Get(id)
+	conv, err := s.repo.Get(id)
+	if err != nil {
+		return nil
+	}
 	if conv == nil {
 		return nil
 	}
@@ -74,7 +79,10 @@ func (s *Service) ListDeletedConversations() []ConversationSummary {
 // listConversationsByArchivedStatus returns summaries filtered by archive status.
 func (s *Service) listConversationsByArchivedStatus(archived bool) []ConversationSummary {
 
-	convs, _ := s.repo.List()
+	convs, err := s.repo.List()
+	if err != nil {
+		return nil
+	}
 	summaries := make([]ConversationSummary, 0, len(convs))
 	for _, conv := range convs {
 		if conv.CheckIsArchived() == archived {
@@ -97,21 +105,29 @@ func (s *Service) listConversationsByArchivedStatus(archived bool) []Conversatio
 // AddMessage adds a message to a conversation.
 func (s *Service) AddMessage(conversationID string, role Role, content string) *Message {
 
-	conv, _ := s.repo.Get(conversationID)
+	conv, err := s.repo.Get(conversationID)
+	if err != nil {
+		return nil
+	}
 	if conv == nil || conv.CheckIsArchived() {
 		return nil
 	}
 
 	msg := NewMessage(conversationID, role, content)
 	conv.AddMessage(msg)
-	s.repo.Update(conv)
+	if err := s.repo.Update(conv); err != nil {
+		return nil
+	}
 	return msg
 }
 
 // SetConversationTitle updates the title for a conversation.
 func (s *Service) SetConversationTitle(conversationID, title string) bool {
 
-	conv, _ := s.repo.Get(conversationID)
+	conv, err := s.repo.Get(conversationID)
+	if err != nil {
+		return false
+	}
 	if conv == nil {
 		return false
 	}
@@ -121,28 +137,35 @@ func (s *Service) SetConversationTitle(conversationID, title string) bool {
 	conv.UpdatedAt = time.Now().UnixMilli()
 	conv.Unlock()
 
-	s.repo.Update(conv)
-	return true
+	return s.repo.Update(conv) == nil
 }
 
 // CreateStreamingMessage creates a new streaming message placeholder.
 func (s *Service) CreateStreamingMessage(conversationID string, role Role) *Message {
 
-	conv, _ := s.repo.Get(conversationID)
+	conv, err := s.repo.Get(conversationID)
+	if err != nil {
+		return nil
+	}
 	if conv == nil || conv.CheckIsArchived() {
 		return nil
 	}
 
 	msg := NewStreamingMessage(conversationID, role)
 	conv.AddMessage(msg)
-	s.repo.Update(conv)
+	if err := s.repo.Update(conv); err != nil {
+		return nil
+	}
 	return msg
 }
 
 // AppendToMessage appends content to a streaming message.
 func (s *Service) AppendToMessage(conversationID, messageID string, blockIndex int, content string) bool {
 
-	conv, _ := s.repo.Get(conversationID)
+	conv, err := s.repo.Get(conversationID)
+	if err != nil {
+		return false
+	}
 	if conv == nil {
 		return false
 	}
@@ -164,7 +187,9 @@ func (s *Service) AppendToMessage(conversationID, messageID string, blockIndex i
 	}
 
 	if updated {
-		s.repo.Update(conv)
+		if err := s.repo.Update(conv); err != nil {
+			return false
+		}
 	}
 
 	return updated
@@ -173,7 +198,10 @@ func (s *Service) AppendToMessage(conversationID, messageID string, blockIndex i
 // FinalizeMessage marks a streaming message as complete.
 func (s *Service) FinalizeMessage(conversationID, messageID string, metadata *MessageMetadata) bool {
 
-	conv, _ := s.repo.Get(conversationID)
+	conv, err := s.repo.Get(conversationID)
+	if err != nil {
+		return false
+	}
 	if conv == nil {
 		return false
 	}
@@ -192,7 +220,9 @@ func (s *Service) FinalizeMessage(conversationID, messageID string, metadata *Me
 	}
 
 	if updated {
-		s.repo.Update(conv)
+		if err := s.repo.Update(conv); err != nil {
+			return false
+		}
 	}
 
 	return updated
@@ -201,7 +231,10 @@ func (s *Service) FinalizeMessage(conversationID, messageID string, metadata *Me
 // DeleteConversation moves a conversation into the recycle bin.
 func (s *Service) DeleteConversation(id string) bool {
 
-	conv, _ := s.repo.Get(id)
+	conv, err := s.repo.Get(id)
+	if err != nil {
+		return false
+	}
 	if conv == nil || conv.CheckIsArchived() {
 		return false
 	}
@@ -221,7 +254,10 @@ func (s *Service) DeleteConversation(id string) bool {
 // RestoreConversation restores a conversation from the recycle bin.
 func (s *Service) RestoreConversation(id string) bool {
 
-	conv, _ := s.repo.Get(id)
+	conv, err := s.repo.Get(id)
+	if err != nil {
+		return false
+	}
 	if conv == nil || !conv.CheckIsArchived() {
 		return false
 	}
@@ -251,14 +287,16 @@ func (s *Service) UpdateConversationModel(id, model string) bool {
 	if model == "" {
 		return false
 	}
-	conv, _ := s.repo.Get(id)
+	conv, err := s.repo.Get(id)
+	if err != nil {
+		return false
+	}
 	if conv != nil && !conv.CheckIsArchived() {
 		conv.Lock()
 		defer conv.Unlock()
 		conv.Settings.Model = model
 		conv.UpdatedAt = time.Now().UnixMilli()
-		s.repo.Update(conv)
-		return true
+		return s.repo.Update(conv) == nil
 	}
 	return false
 }
@@ -269,14 +307,16 @@ func (s *Service) UpdateConversationProvider(id, provider string) bool {
 	if provider == "" {
 		return false
 	}
-	conv, _ := s.repo.Get(id)
+	conv, err := s.repo.Get(id)
+	if err != nil {
+		return false
+	}
 	if conv != nil && !conv.CheckIsArchived() {
 		conv.Lock()
 		defer conv.Unlock()
 		conv.Settings.Provider = provider
 		conv.UpdatedAt = time.Now().UnixMilli()
-		s.repo.Update(conv)
-		return true
+		return s.repo.Update(conv) == nil
 	}
 	return false
 }

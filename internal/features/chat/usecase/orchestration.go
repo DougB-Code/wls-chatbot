@@ -11,20 +11,21 @@ import (
 
 	coreports "github.com/MadeByDoug/wls-chatbot/internal/core/ports"
 	chatports "github.com/MadeByDoug/wls-chatbot/internal/features/chat/ports"
-	settingsports "github.com/MadeByDoug/wls-chatbot/internal/features/settings/ports"
+	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/providers/interfaces/core"
+	providergateway "github.com/MadeByDoug/wls-chatbot/internal/features/providers/interfaces/gateway"
 )
 
 // Orchestrator coordinates chat workflows and event emission.
 type Orchestrator struct {
 	service  *Service
-	registry settingsports.ProviderRegistry
-	secrets  settingsports.SecretStore
+	registry providercore.ProviderRegistry
+	secrets  providercore.SecretStore
 	emitter  coreports.ChatEmitter
 	stream   *streamManager
 }
 
 // NewOrchestrator creates a chat orchestrator with required dependencies.
-func NewOrchestrator(chatService *Service, registry settingsports.ProviderRegistry, secrets settingsports.SecretStore, emitter coreports.ChatEmitter) *Orchestrator {
+func NewOrchestrator(chatService *Service, registry providercore.ProviderRegistry, secrets providercore.SecretStore, emitter coreports.ChatEmitter) *Orchestrator {
 
 	return &Orchestrator{
 		service:  chatService,
@@ -36,7 +37,7 @@ func NewOrchestrator(chatService *Service, registry settingsports.ProviderRegist
 }
 
 // CreateConversation creates a new conversation with the given settings.
-func (o *Orchestrator) CreateConversation(providerName, model string) *Conversation {
+func (o *Orchestrator) CreateConversation(providerName, model string) (*Conversation, error) {
 
 	return o.service.CreateConversation(ConversationSettings{
 		Provider: providerName,
@@ -120,9 +121,17 @@ func (o *Orchestrator) SendMessage(ctx context.Context, conversationID, content 
 		return nil, errors.New("message content required")
 	}
 
+	conversation := o.service.GetConversation(conversationID)
+	if conversation == nil {
+		return nil, fmt.Errorf("conversation not found: %s", conversationID)
+	}
+	if conversation.IsArchived {
+		return nil, fmt.Errorf("conversation archived: %s", conversationID)
+	}
+
 	userMsg := o.service.AddMessage(conversationID, RoleUser, content)
 	if userMsg == nil {
-		return nil, fmt.Errorf("conversation not found: %s", conversationID)
+		return nil, fmt.Errorf("failed to persist user message for conversation: %s", conversationID)
 	}
 
 	o.maybeAutoTitle(conversationID, userMsg)
@@ -162,12 +171,12 @@ func (o *Orchestrator) SendMessage(ctx context.Context, conversationID, content 
 	if err != nil {
 		o.emitStreamError(conversationID, streamMsg.ID, err)
 		metadata := o.buildMetadata(providerName, conv.Settings.Model, "error", nil, time.Now(), err)
-		o.service.FinalizeMessage(conversationID, streamMsg.ID, metadata)
+		_ = o.service.FinalizeMessage(conversationID, streamMsg.ID, metadata)
 		return userMsg, nil
 	}
 
 	chatMessages := o.buildProviderMessages(conv, streamMsg.ID)
-	opts := settingsports.ChatOptions{
+	opts := providergateway.ChatOptions{
 		Model:       conv.Settings.Model,
 		Temperature: conv.Settings.Temperature,
 		MaxTokens:   conv.Settings.MaxTokens,
@@ -182,7 +191,7 @@ func (o *Orchestrator) SendMessage(ctx context.Context, conversationID, content 
 		o.stream.clear(conversationID, streamMsg.ID)
 		o.emitStreamError(conversationID, streamMsg.ID, err)
 		metadata := o.buildMetadata(providerName, conv.Settings.Model, "error", nil, time.Now(), err)
-		o.service.FinalizeMessage(conversationID, streamMsg.ID, metadata)
+		_ = o.service.FinalizeMessage(conversationID, streamMsg.ID, metadata)
 		return userMsg, nil
 	}
 
@@ -259,7 +268,7 @@ func (o *Orchestrator) emitStreamComplete(conversationID, messageID string, meta
 }
 
 // ensureProviderConfigured returns a configured provider or an error.
-func (o *Orchestrator) ensureProviderConfigured(name string) (settingsports.Provider, error) {
+func (o *Orchestrator) ensureProviderConfigured(name string) (providercore.Provider, error) {
 
 	if o.registry == nil {
 		return nil, fmt.Errorf("provider registry not configured")
@@ -270,7 +279,7 @@ func (o *Orchestrator) ensureProviderConfigured(name string) (settingsports.Prov
 	}
 
 	fields := prov.CredentialFields()
-	credentials := make(settingsports.ProviderCredentials)
+	credentials := make(providercore.ProviderCredentials)
 	for _, field := range fields {
 		if !field.Secret {
 			continue
@@ -291,22 +300,22 @@ func (o *Orchestrator) ensureProviderConfigured(name string) (settingsports.Prov
 		credentials[field.Name] = value
 	}
 	if len(credentials) > 0 {
-		_ = prov.Configure(settingsports.ProviderConfig{Credentials: credentials})
+		_ = prov.Configure(providercore.ProviderConfig{Credentials: credentials})
 	}
 	return prov, nil
 }
 
 // buildProviderMessages builds the provider-facing message list.
-func (o *Orchestrator) buildProviderMessages(conv *Conversation, streamingMessageID string) []settingsports.ProviderMessage {
+func (o *Orchestrator) buildProviderMessages(conv *Conversation, streamingMessageID string) []providergateway.ProviderMessage {
 
 	conv.Lock()
 	defer conv.Unlock()
 
-	messages := make([]settingsports.ProviderMessage, 0, len(conv.Messages)+1)
+	messages := make([]providergateway.ProviderMessage, 0, len(conv.Messages)+1)
 	systemPrompt := strings.TrimSpace(conv.Settings.SystemPrompt)
 	if systemPrompt != "" {
-		messages = append(messages, settingsports.ProviderMessage{
-			Role:    settingsports.RoleSystem,
+		messages = append(messages, providergateway.ProviderMessage{
+			Role:    providergateway.RoleSystem,
 			Content: systemPrompt,
 		})
 	}
@@ -319,8 +328,8 @@ func (o *Orchestrator) buildProviderMessages(conv *Conversation, streamingMessag
 		if strings.TrimSpace(content) == "" {
 			continue
 		}
-		messages = append(messages, settingsports.ProviderMessage{
-			Role:    settingsports.Role(msg.Role),
+		messages = append(messages, providergateway.ProviderMessage{
+			Role:    providergateway.Role(msg.Role),
 			Content: content,
 		})
 	}
@@ -344,14 +353,14 @@ func textFromBlocks(blocks []Block) string {
 }
 
 // consumeStream handles incoming provider chunks and emits events.
-func (o *Orchestrator) consumeStream(conversationID, messageID, providerName, fallbackModel string, chunks <-chan settingsports.Chunk) {
+func (o *Orchestrator) consumeStream(conversationID, messageID, providerName, fallbackModel string, chunks <-chan providergateway.Chunk) {
 
 	defer o.stream.clear(conversationID, messageID)
 
 	start := time.Now()
 	var (
 		finishReason string
-		usage        *settingsports.UsageStats
+		usage        *providergateway.UsageStats
 		model        string
 	)
 
@@ -359,18 +368,24 @@ func (o *Orchestrator) consumeStream(conversationID, messageID, providerName, fa
 		if chunk.Error != nil {
 			if isContextCanceled(chunk.Error) {
 				metadata := o.buildMetadata(providerName, chooseModel(model, fallbackModel), "cancelled", usage, start, nil)
-				o.service.FinalizeMessage(conversationID, messageID, metadata)
+				_ = o.service.FinalizeMessage(conversationID, messageID, metadata)
 				o.emitStreamComplete(conversationID, messageID, metadata)
 			} else {
 				o.emitStreamError(conversationID, messageID, chunk.Error)
 				metadata := o.buildMetadata(providerName, chooseModel(model, fallbackModel), "error", usage, start, chunk.Error)
-				o.service.FinalizeMessage(conversationID, messageID, metadata)
+				_ = o.service.FinalizeMessage(conversationID, messageID, metadata)
 			}
 			return
 		}
 
 		if chunk.Content != "" {
-			o.service.AppendToMessage(conversationID, messageID, 0, chunk.Content)
+			if !o.service.AppendToMessage(conversationID, messageID, 0, chunk.Content) {
+				err := fmt.Errorf("failed to persist stream chunk")
+				o.emitStreamError(conversationID, messageID, err)
+				metadata := o.buildMetadata(providerName, chooseModel(model, fallbackModel), "error", usage, start, err)
+				_ = o.service.FinalizeMessage(conversationID, messageID, metadata)
+				return
+			}
 			o.emitStreamChunk(conversationID, messageID, 0, chunk.Content)
 		}
 		if chunk.Model != "" {
@@ -389,7 +404,11 @@ func (o *Orchestrator) consumeStream(conversationID, messageID, providerName, fa
 	}
 
 	metadata := o.buildMetadata(providerName, chooseModel(model, fallbackModel), finishReason, usage, start, nil)
-	o.service.FinalizeMessage(conversationID, messageID, metadata)
+	if !o.service.FinalizeMessage(conversationID, messageID, metadata) {
+		err := fmt.Errorf("failed to persist stream completion")
+		o.emitStreamError(conversationID, messageID, err)
+		return
+	}
 	o.emitStreamComplete(conversationID, messageID, metadata)
 }
 
@@ -398,7 +417,7 @@ func (o *Orchestrator) buildMetadata(
 	providerName,
 	model,
 	finishReason string,
-	usage *settingsports.UsageStats,
+	usage *providergateway.UsageStats,
 	start time.Time,
 	err error,
 ) *MessageMetadata {

@@ -2,11 +2,24 @@
 // internal/core/adapters/wails/provider_api.go
 package wails
 
-import "github.com/MadeByDoug/wls-chatbot/internal/features/settings/usecase"
+import (
+	"fmt"
+
+	"github.com/MadeByDoug/wls-chatbot/internal/features/settings/usecase"
+)
 
 // GetProviders returns all available providers with their status.
 func (b *Bridge) GetProviders() []provider.Info {
 
+	if b.backend != nil {
+		infos, err := b.backend.GetProviders(b.ctxOrBackground())
+		if err == nil {
+			return infos
+		}
+	}
+	if b.providers == nil {
+		return nil
+	}
 	return b.providers.GetProviders()
 }
 
@@ -37,6 +50,12 @@ func (b *Bridge) SetActiveProvider(name string) bool {
 // TestProvider tests the connection to a provider.
 func (b *Bridge) TestProvider(name string) error {
 
+	if b.backend != nil {
+		return b.backend.TestProvider(b.ctxOrBackground(), name)
+	}
+	if b.providers == nil {
+		return fmt.Errorf("provider orchestrator not configured")
+	}
 	return b.providers.TestProvider(b.ctxOrBackground(), name)
 }
 

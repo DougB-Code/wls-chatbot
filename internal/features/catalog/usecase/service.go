@@ -5,6 +5,7 @@ package catalog
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -73,11 +74,16 @@ func (s *Service) RefreshAll(ctx context.Context) error {
 	}
 
 	providerInfos := s.indexProviders()
+	refreshErrors := make([]error, 0)
 	for _, providerConfig := range s.cfg.Providers {
 		info := providerInfos[providerConfig.Name]
 		if err := s.refreshProvider(ctx, providerConfig, info); err != nil {
 			s.logWarn("Catalog refresh provider failed", err, coreports.LogField{Key: "provider", Value: providerConfig.Name})
+			refreshErrors = append(refreshErrors, fmt.Errorf("%s: %w", providerConfig.Name, err))
 		}
+	}
+	if len(refreshErrors) > 0 {
+		return fmt.Errorf("catalog refresh failed for %d provider(s): %w", len(refreshErrors), errors.Join(refreshErrors...))
 	}
 	return nil
 }
@@ -122,10 +128,14 @@ func (s *Service) TestEndpoint(ctx context.Context, endpointID string) error {
 	}
 
 	if err := s.providers.TestConnection(ctx, endpoint.ProviderName); err != nil {
-		_ = s.repo.UpdateEndpointStatus(ctx, endpointID, time.Now().UnixMilli(), false, err.Error())
+		if statusErr := s.repo.UpdateEndpointStatus(ctx, endpointID, time.Now().UnixMilli(), false, err.Error()); statusErr != nil {
+			s.logWarn("Catalog endpoint status update failed", statusErr, coreports.LogField{Key: "endpoint", Value: endpointID})
+		}
 		return &CatalogError{Code: ErrorCodeProviderAuthFailure, Message: err.Error(), Cause: err}
 	}
-	_ = s.repo.UpdateEndpointStatus(ctx, endpointID, time.Now().UnixMilli(), true, "")
+	if statusErr := s.repo.UpdateEndpointStatus(ctx, endpointID, time.Now().UnixMilli(), true, ""); statusErr != nil {
+		s.logWarn("Catalog endpoint status update failed", statusErr, coreports.LogField{Key: "endpoint", Value: endpointID})
+	}
 	return nil
 }
 
@@ -364,28 +374,28 @@ func (s *Service) AssignRole(ctx context.Context, roleID, modelEntryID, assigned
 		return RoleAssignmentResult{}, fmt.Errorf("catalog service: role not found")
 	}
 
-	intrinsic, err := s.repo.GetModelIntrinsic(ctx, modelEntryID)
+	capabilities, err := s.repo.GetModelCapabilities(ctx, modelEntryID)
 	if err != nil {
 		return RoleAssignmentResult{}, err
 	}
-	if intrinsic.InputModalities == nil && intrinsic.OutputModalities == nil {
-		return RoleAssignmentResult{}, fmt.Errorf("catalog service: model intrinsic missing")
+	if capabilities.InputModalities == nil && capabilities.OutputModalities == nil {
+		return RoleAssignmentResult{}, fmt.Errorf("catalog service: model capabilities missing")
 	}
 
-	missingModalities := diffModalities(role.RequiredInputModalities, intrinsic.InputModalities)
-	missingModalities = append(missingModalities, diffModalities(role.RequiredOutputModalities, intrinsic.OutputModalities)...)
+	missingModalities := diffModalities(role.RequiredInputModalities, capabilities.InputModalities)
+	missingModalities = append(missingModalities, diffModalities(role.RequiredOutputModalities, capabilities.OutputModalities)...)
 
 	missingFeatures := []string{}
-	if role.RequiresStreaming && !intrinsic.SupportsStreaming {
+	if role.RequiresStreaming && !capabilities.SupportsStreaming {
 		missingFeatures = append(missingFeatures, "streaming")
 	}
-	if role.RequiresToolCalling && !intrinsic.SupportsToolCalling {
+	if role.RequiresToolCalling && !capabilities.SupportsToolCalling {
 		missingFeatures = append(missingFeatures, "tool_calling")
 	}
-	if role.RequiresStructuredOutput && !intrinsic.SupportsStructuredOutput {
+	if role.RequiresStructuredOutput && !capabilities.SupportsStructuredOutput {
 		missingFeatures = append(missingFeatures, "structured_output")
 	}
-	if role.RequiresVision && !intrinsic.SupportsVision {
+	if role.RequiresVision && !capabilities.SupportsVision {
 		missingFeatures = append(missingFeatures, "vision")
 	}
 
@@ -452,7 +462,9 @@ func (s *Service) refreshProvider(ctx context.Context, providerConfig config.Pro
 	}
 
 	if err := s.providers.RefreshResources(ctx, providerConfig.Name); err != nil {
-		_ = s.repo.UpdateProviderStatus(ctx, record.ID, time.Now().UnixMilli(), false, err.Error(), record.LastDiscoveryAt)
+		if statusErr := s.repo.UpdateProviderStatus(ctx, record.ID, time.Now().UnixMilli(), false, err.Error(), record.LastDiscoveryAt); statusErr != nil {
+			s.logWarn("Catalog provider status update failed", statusErr, coreports.LogField{Key: "provider", Value: record.Name})
+		}
 		return &CatalogError{Code: ErrorCodeDiscoveryFailure, Message: err.Error(), Cause: err}
 	}
 
@@ -465,7 +477,9 @@ func (s *Service) refreshProvider(ctx context.Context, providerConfig config.Pro
 		}
 	}
 
-	_ = s.repo.UpdateProviderStatus(ctx, record.ID, time.Now().UnixMilli(), true, "", time.Now().UnixMilli())
+	if statusErr := s.repo.UpdateProviderStatus(ctx, record.ID, time.Now().UnixMilli(), true, "", time.Now().UnixMilli()); statusErr != nil {
+		s.logWarn("Catalog provider status update failed", statusErr, coreports.LogField{Key: "provider", Value: record.Name})
+	}
 	return nil
 }
 
@@ -474,7 +488,10 @@ func (s *Service) buildEndpoints(providerConfig config.ProviderConfig, info prov
 	now := time.Now().UnixMilli()
 	authJSON := s.buildEndpointAuth(info)
 
-	endpointInputs, _ := s.repo.LoadProviderInputs(providerConfig.Name)
+	endpointInputs, err := s.repo.LoadProviderInputs(providerConfig.Name)
+	if err != nil {
+		s.logWarn("Catalog provider inputs load failed", err, coreports.LogField{Key: "provider", Value: providerConfig.Name})
+	}
 	baseURL := providerConfig.BaseURL
 	if providerConfig.Type == "cloudflare" {
 		baseURL = resolveCloudflareBaseURL(providerConfig.BaseURL, endpointInputs)
@@ -631,7 +648,7 @@ func (s *Service) ensureCapabilities(ctx context.Context, entry catalogrepo.Mode
 	}
 	outputModalities := []string{"text"}
 
-	if err := s.repo.EnsureModelIntrinsic(
+	if err := s.repo.EnsureModelCapabilities(
 		ctx,
 		entry.ID,
 		model.SupportsStreaming,

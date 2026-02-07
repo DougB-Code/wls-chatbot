@@ -21,9 +21,10 @@ export async function refreshNotifications(): Promise<void> {
  */
 export async function createNotification(payload: NotificationPayload): Promise<void> {
     const notification = await notificationTransport.createNotification(payload);
-    if (notification) {
-        prependNotification(notification);
+    if (!notification) {
+        throw new Error('Failed to persist notification');
     }
+    prependNotification(notification);
 }
 
 /**

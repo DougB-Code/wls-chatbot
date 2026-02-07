@@ -4,11 +4,13 @@
  */
 
 import * as catalogTransport from '../infrastructure/catalogTransport';
-import { onEvent, offEvent } from '../../../core/infrastructure/wails/events';
+import { onEvent, type EventUnsubscribe } from '../../../core/infrastructure/wails/events';
 import { setCatalogOverview, setCatalogBusy, setCatalogError } from '../state/catalogSignals';
 import type { RoleSummary } from '../../../types/catalog';
+import { log } from '../../../lib/logger';
 
 let catalogEventsInitialized = false;
+let unsubscribeCatalogEvents: EventUnsubscribe | null = null;
 
 /**
  * attach catalog-related backend event listeners.
@@ -16,8 +18,11 @@ let catalogEventsInitialized = false;
 export function initCatalogEvents(): void {
     if (catalogEventsInitialized) return;
     catalogEventsInitialized = true;
-    onEvent('catalog:updated', () => {
-        void refreshCatalogOverview();
+    unsubscribeCatalogEvents = onEvent('catalog:updated', () => {
+        void refreshCatalogOverview().catch((err) => {
+            const message = err instanceof Error ? err.message : 'Unknown catalog refresh error';
+            log.warn().str('error', message).msg('Failed to refresh catalog after catalog:updated event');
+        });
     });
 }
 
@@ -27,7 +32,10 @@ export function initCatalogEvents(): void {
 export function teardownCatalogEvents(): void {
     if (!catalogEventsInitialized) return;
     catalogEventsInitialized = false;
-    offEvent('catalog:updated');
+    if (unsubscribeCatalogEvents) {
+        unsubscribeCatalogEvents();
+        unsubscribeCatalogEvents = null;
+    }
 }
 
 /**
@@ -39,7 +47,8 @@ export async function refreshCatalogOverview(): Promise<void> {
         const overview = await catalogTransport.getCatalogOverview();
         setCatalogOverview(overview);
     } catch (err) {
-        setCatalogError((err as Error).message || 'Failed to load catalog');
+        setCatalogError(extractErrorMessage(err, 'Failed to load catalog'));
+        throw err;
     }
 }
 
@@ -145,4 +154,23 @@ export async function unassignCatalogRole(roleId: string, modelEntryId: string):
     } finally {
         setCatalogBusy(`role-${roleId}`, false);
     }
+}
+
+/**
+ * normalize unknown errors into a readable message.
+ */
+function extractErrorMessage(err: unknown, fallback: string): string {
+    if (err instanceof Error && err.message.trim()) {
+        return err.message;
+    }
+    if (typeof err === 'string' && err.trim()) {
+        return err;
+    }
+    if (err && typeof err === 'object' && 'message' in err) {
+        const message = (err as { message?: unknown }).message;
+        if (typeof message === 'string' && message.trim()) {
+            return message;
+        }
+    }
+    return fallback;
 }

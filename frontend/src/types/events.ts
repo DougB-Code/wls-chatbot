@@ -1,5 +1,6 @@
 /**
  * define backend-to-frontend event payload shapes.
+ * frontend/src/types/events.ts
  */
 
 import type { Message, MessageMetadata } from './wails';

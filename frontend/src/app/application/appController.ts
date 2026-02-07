@@ -31,16 +31,16 @@ async function bootstrapPolicies(): Promise<void> {
     initProviderEvents();
     initCatalogEvents();
     void refreshProviders().catch((err) => {
-        notifyError((err as Error).message || 'Failed to load providers', 'Startup failed');
+        notifyError(extractErrorMessage(err, 'Failed to load providers'), 'Startup failed');
     });
     void refreshCatalogOverview().catch((err) => {
-        notifyError((err as Error).message || 'Failed to load catalog', 'Startup failed');
+        notifyError(extractErrorMessage(err, 'Failed to load catalog'), 'Startup failed');
     });
     void initChatPolicy().catch((err) => {
         notifyError((err as Error).message || 'Failed to initialize chat', 'Startup failed');
     });
     void refreshNotifications().catch((err) => {
-        notifyError((err as Error).message || 'Failed to load notifications', 'Startup failed');
+        notifyError(extractErrorMessage(err, 'Failed to load notifications'), 'Startup failed');
     });
 }
 
@@ -247,4 +247,23 @@ function attachUiHandlers(root: HTMLElement): void {
             notifyError((err as Error).message || 'Failed to remove assignment', 'Role assignment failed');
         });
     });
+}
+
+/**
+ * normalize unknown errors into a readable message.
+ */
+function extractErrorMessage(err: unknown, fallback: string): string {
+    if (err instanceof Error && err.message.trim()) {
+        return err.message;
+    }
+    if (typeof err === 'string' && err.trim()) {
+        return err;
+    }
+    if (err && typeof err === 'object' && 'message' in err) {
+        const message = (err as { message?: unknown }).message;
+        if (typeof message === 'string' && message.trim()) {
+            return message;
+        }
+    }
+    return fallback;
 }

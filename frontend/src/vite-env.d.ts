@@ -1,5 +1,6 @@
 /**
  * declare Vite-specific type augmentations for the frontend build.
+ * frontend/src/vite-env.d.ts
  */
 /// <reference types="vite/client" />
 

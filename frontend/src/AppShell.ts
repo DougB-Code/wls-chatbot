@@ -16,10 +16,10 @@ import './features/notifications';
 
 import logoUrl from './assets/images/wls-chatbot-logo.png';
 
-type SectionSidePanelSpec = {
+interface SectionSidePanelSpec {
     hasSidePanel: boolean;
     defaultOpen: boolean;
-};
+}
 
 const sectionSidePanelSpecs: Record<SectionId, SectionSidePanelSpec> = {
     chat: {

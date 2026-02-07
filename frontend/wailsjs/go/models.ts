@@ -528,76 +528,7 @@ export namespace chat {
 
 }
 
-export namespace domain {
-	
-	export class Notification {
-	    id: number;
-	    type: string;
-	    title: string;
-	    message: string;
-	    createdAt: number;
-	    readAt?: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new Notification(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.type = source["type"];
-	        this.title = source["title"];
-	        this.message = source["message"];
-	        this.createdAt = source["createdAt"];
-	        this.readAt = source["readAt"];
-	    }
-	}
-
-}
-
-export namespace logger {
-	
-	export class LogEntry {
-	    level: string;
-	    message: string;
-	    fields: Record<string, string>;
-	
-	    static createFrom(source: any = {}) {
-	        return new LogEntry(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.level = source["level"];
-	        this.message = source["message"];
-	        this.fields = source["fields"];
-	    }
-	}
-
-}
-
-export namespace notifications {
-	
-	export class NotificationPayload {
-	    type: string;
-	    title: string;
-	    message: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new NotificationPayload(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.type = source["type"];
-	        this.title = source["title"];
-	        this.message = source["message"];
-	    }
-	}
-
-}
-
-export namespace ports {
+export namespace core {
 	
 	export class CredentialField {
 	    name: string;
@@ -646,6 +577,262 @@ export namespace ports {
 
 }
 
+export namespace domain {
+	
+	export class Notification {
+	    id: number;
+	    type: string;
+	    title: string;
+	    message: string;
+	    createdAt: number;
+	    readAt?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Notification(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.type = source["type"];
+	        this.title = source["title"];
+	        this.message = source["message"];
+	        this.createdAt = source["createdAt"];
+	        this.readAt = source["readAt"];
+	    }
+	}
+
+}
+
+export namespace interfaces {
+	
+	export class EditImageRequest {
+	    providerName: string;
+	    modelName?: string;
+	    prompt: string;
+	    imagePath: string;
+	    maskPath?: string;
+	    n?: number;
+	    size?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new EditImageRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.providerName = source["providerName"];
+	        this.modelName = source["modelName"];
+	        this.prompt = source["prompt"];
+	        this.imagePath = source["imagePath"];
+	        this.maskPath = source["maskPath"];
+	        this.n = source["n"];
+	        this.size = source["size"];
+	    }
+	}
+	export class GenerateImageRequest {
+	    providerName: string;
+	    modelName?: string;
+	    prompt: string;
+	    n?: number;
+	    size?: string;
+	    quality?: string;
+	    style?: string;
+	    responseFormat?: string;
+	    user?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GenerateImageRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.providerName = source["providerName"];
+	        this.modelName = source["modelName"];
+	        this.prompt = source["prompt"];
+	        this.n = source["n"];
+	        this.size = source["size"];
+	        this.quality = source["quality"];
+	        this.style = source["style"];
+	        this.responseFormat = source["responseFormat"];
+	        this.user = source["user"];
+	    }
+	}
+	export class ImageBinaryResult {
+	    bytes: number[];
+	    revisedPrompt?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ImageBinaryResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.bytes = source["bytes"];
+	        this.revisedPrompt = source["revisedPrompt"];
+	    }
+	}
+	export class ModelCapabilities {
+	    supportsStreaming: boolean;
+	    supportsToolCalling: boolean;
+	    supportsStructuredOutput: boolean;
+	    supportsVision: boolean;
+	    inputModalities: string[];
+	    outputModalities: string[];
+	    capabilityIds: string[];
+	    systemTags?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ModelCapabilities(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.supportsStreaming = source["supportsStreaming"];
+	        this.supportsToolCalling = source["supportsToolCalling"];
+	        this.supportsStructuredOutput = source["supportsStructuredOutput"];
+	        this.supportsVision = source["supportsVision"];
+	        this.inputModalities = source["inputModalities"];
+	        this.outputModalities = source["outputModalities"];
+	        this.capabilityIds = source["capabilityIds"];
+	        this.systemTags = source["systemTags"];
+	    }
+	}
+	export class ModelListFilter {
+	    source?: string;
+	    requiredInputModalities?: string[];
+	    requiredOutputModalities?: string[];
+	    requiredCapabilityIds?: string[];
+	    requiredSystemTags?: string[];
+	    requiresStreaming?: boolean;
+	    requiresToolCalling?: boolean;
+	    requiresStructuredOutput?: boolean;
+	    requiresVision?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ModelListFilter(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.source = source["source"];
+	        this.requiredInputModalities = source["requiredInputModalities"];
+	        this.requiredOutputModalities = source["requiredOutputModalities"];
+	        this.requiredCapabilityIds = source["requiredCapabilityIds"];
+	        this.requiredSystemTags = source["requiredSystemTags"];
+	        this.requiresStreaming = source["requiresStreaming"];
+	        this.requiresToolCalling = source["requiresToolCalling"];
+	        this.requiresStructuredOutput = source["requiresStructuredOutput"];
+	        this.requiresVision = source["requiresVision"];
+	    }
+	}
+	export class ModelSummary {
+	    id: string;
+	    modelId: string;
+	    displayName: string;
+	    providerName: string;
+	    source: string;
+	    approved: boolean;
+	    availabilityState: string;
+	    contextWindow: number;
+	    costTier: string;
+	    capabilities: ModelCapabilities;
+	
+	    static createFrom(source: any = {}) {
+	        return new ModelSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.modelId = source["modelId"];
+	        this.displayName = source["displayName"];
+	        this.providerName = source["providerName"];
+	        this.source = source["source"];
+	        this.approved = source["approved"];
+	        this.availabilityState = source["availabilityState"];
+	        this.contextWindow = source["contextWindow"];
+	        this.costTier = source["costTier"];
+	        this.capabilities = this.convertValues(source["capabilities"], ModelCapabilities);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class SyncModelsResult {
+	    path: string;
+	    imported: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncModelsResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.imported = source["imported"];
+	    }
+	}
+
+}
+
+export namespace logger {
+	
+	export class LogEntry {
+	    level: string;
+	    message: string;
+	    fields: Record<string, string>;
+	
+	    static createFrom(source: any = {}) {
+	        return new LogEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.level = source["level"];
+	        this.message = source["message"];
+	        this.fields = source["fields"];
+	    }
+	}
+
+}
+
+export namespace notifications {
+	
+	export class NotificationPayload {
+	    type: string;
+	    title: string;
+	    message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new NotificationPayload(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.type = source["type"];
+	        this.title = source["title"];
+	        this.message = source["message"];
+	    }
+	}
+
+}
+
 export namespace provider {
 	
 	export class Status {
@@ -667,10 +854,10 @@ export namespace provider {
 	export class Info {
 	    name: string;
 	    displayName: string;
-	    credentialFields?: ports.CredentialField[];
+	    credentialFields?: core.CredentialField[];
 	    credentialValues?: Record<string, string>;
-	    models: ports.Model[];
-	    resources: ports.Model[];
+	    models: core.Model[];
+	    resources: core.Model[];
 	    isConnected: boolean;
 	    isActive: boolean;
 	    status?: Status;
@@ -683,10 +870,10 @@ export namespace provider {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
 	        this.displayName = source["displayName"];
-	        this.credentialFields = this.convertValues(source["credentialFields"], ports.CredentialField);
+	        this.credentialFields = this.convertValues(source["credentialFields"], core.CredentialField);
 	        this.credentialValues = source["credentialValues"];
-	        this.models = this.convertValues(source["models"], ports.Model);
-	        this.resources = this.convertValues(source["resources"], ports.Model);
+	        this.models = this.convertValues(source["models"], core.Model);
+	        this.resources = this.convertValues(source["resources"], core.Model);
 	        this.isConnected = source["isConnected"];
 	        this.isActive = source["isActive"];
 	        this.status = this.convertValues(source["status"], Status);

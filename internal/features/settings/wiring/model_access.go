@@ -6,11 +6,11 @@ import (
 	"strings"
 
 	"github.com/MadeByDoug/wls-chatbot/internal/features/settings/config"
-	"github.com/MadeByDoug/wls-chatbot/internal/features/settings/ports"
+	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/providers/interfaces/core"
 )
 
 // ResolveEnabledModelsFromConfig returns enabled models from configuration only.
-func ResolveEnabledModelsFromConfig(cfg config.AppConfig, providerName string, defaultModel string) []ports.Model {
+func ResolveEnabledModelsFromConfig(cfg config.AppConfig, providerName string, defaultModel string) []providercore.Model {
 	providerConfig := findProviderConfig(&cfg, providerName)
 	enabledIDs := []string{}
 	if providerConfig != nil {
@@ -64,10 +64,10 @@ func normalizeModelIDs(ids []string) []string {
 }
 
 // buildFallbackModels constructs model structs from IDs.
-func buildFallbackModels(ids []string) []ports.Model {
-	models := make([]ports.Model, 0, len(ids))
+func buildFallbackModels(ids []string) []providercore.Model {
+	models := make([]providercore.Model, 0, len(ids))
 	for _, id := range ids {
-		models = append(models, ports.Model{
+		models = append(models, providercore.Model{
 			ID:   id,
 			Name: id,
 		})

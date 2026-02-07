@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	coreports "github.com/MadeByDoug/wls-chatbot/internal/core/ports"
 )
@@ -13,24 +14,24 @@ import (
 // Orchestrator orchestrates provider workflows and event emission.
 type Orchestrator struct {
 	providers *Service
-	secrets   SecretStore
 	emitter   coreports.Emitter
+	activeMu  sync.Mutex
+	activeRun bool
+	ensureMu  sync.Mutex
 }
 
 // NewOrchestrator creates a provider orchestrator with required dependencies.
-func NewOrchestrator(service *Service, secrets SecretStore, emitter coreports.Emitter) *Orchestrator {
+func NewOrchestrator(service *Service, _ SecretStore, emitter coreports.Emitter) *Orchestrator {
 
-	return &Orchestrator{providers: service, secrets: secrets, emitter: emitter}
+	return &Orchestrator{providers: service, emitter: emitter}
 }
 
 // GetProviders returns all available providers with their status.
 func (o *Orchestrator) GetProviders() []Info {
 
-	// Run provider activation in background to avoid blocking on keyring access
-	go o.ensureActiveProvider()
+	o.ensureActiveProviderAsync()
 	return o.providers.List()
 }
-
 
 // ConnectProvider connects and configures a provider with the given credentials.
 func (o *Orchestrator) ConnectProvider(ctx context.Context, name string, credentials ProviderCredentials) (Info, error) {
@@ -85,6 +86,32 @@ func (o *Orchestrator) SetActiveProvider(name string) bool {
 func (o *Orchestrator) TestProvider(ctx context.Context, name string) error {
 
 	return o.providers.TestConnection(ctx, name)
+}
+
+// GenerateImage generates an image through a configured provider.
+func (o *Orchestrator) GenerateImage(ctx context.Context, name string, options ImageGenerationOptions) (*ImageResult, error) {
+
+	prov, err := o.providerByName(name)
+	if err != nil {
+		return nil, err
+	}
+	if options.N <= 0 {
+		options.N = 1
+	}
+	return prov.GenerateImage(ctx, options)
+}
+
+// EditImage edits an image through a configured provider.
+func (o *Orchestrator) EditImage(ctx context.Context, name string, options ImageEditOptions) (*ImageResult, error) {
+
+	prov, err := o.providerByName(name)
+	if err != nil {
+		return nil, err
+	}
+	if options.N <= 0 {
+		options.N = 1
+	}
+	return prov.EditImage(ctx, options)
 }
 
 // RefreshProviderResources fetches the latest resources from a provider.
@@ -147,6 +174,9 @@ func (o *Orchestrator) emitProviderSwitchToast(previousActive, currentActive Pro
 // ensureActiveProvider selects an active provider with valid credentials.
 func (o *Orchestrator) ensureActiveProvider() {
 
+	o.ensureMu.Lock()
+	defer o.ensureMu.Unlock()
+
 	infos := o.providers.List()
 	active := o.providers.GetActiveProvider()
 	if active != nil {
@@ -154,10 +184,8 @@ func (o *Orchestrator) ensureActiveProvider() {
 			if info.Name != active.Name() || !info.IsConnected {
 				continue
 			}
-			if prov := o.providers.GetProvider(info.Name); prov != nil {
-				if err := o.applyProviderSecrets(info.Name, prov); err == nil {
-					return
-				}
+			if err := o.providers.EnsureProviderConfigured(info.Name); err == nil {
+				return
 			}
 			break
 		}
@@ -166,11 +194,7 @@ func (o *Orchestrator) ensureActiveProvider() {
 		if !info.IsConnected {
 			continue
 		}
-		prov := o.providers.GetProvider(info.Name)
-		if prov == nil {
-			continue
-		}
-		if err := o.applyProviderSecrets(info.Name, prov); err != nil {
+		if err := o.providers.EnsureProviderConfigured(info.Name); err != nil {
 			continue
 		}
 		if o.providers.SetActive(info.Name) {
@@ -179,29 +203,51 @@ func (o *Orchestrator) ensureActiveProvider() {
 	}
 }
 
-// applyProviderSecrets loads stored secrets into the provider instance.
-func (o *Orchestrator) applyProviderSecrets(name string, prov Provider) error {
+// ensureActiveProviderAsync de-duplicates background active-provider checks.
+func (o *Orchestrator) ensureActiveProviderAsync() {
 
-	if o.secrets == nil {
-		return fmt.Errorf("secret store not configured")
+	o.activeMu.Lock()
+	if o.activeRun {
+		o.activeMu.Unlock()
+		return
 	}
-	fields := prov.CredentialFields()
-	credentials := make(ProviderCredentials)
-	for _, field := range fields {
-		if !field.Secret {
-			continue
+	o.activeRun = true
+	o.activeMu.Unlock()
+
+	go func() {
+		defer func() {
+			o.activeMu.Lock()
+			o.activeRun = false
+			o.activeMu.Unlock()
+		}()
+		o.ensureActiveProvider()
+	}()
+}
+
+// providerByName resolves and configures a provider before runtime operations.
+func (o *Orchestrator) providerByName(name string) (Provider, error) {
+
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return nil, fmt.Errorf("provider name required")
+	}
+
+	resolvedName := trimmed
+	infos := o.providers.List()
+	for _, info := range infos {
+		if strings.EqualFold(info.Name, trimmed) {
+			resolvedName = info.Name
+			break
 		}
-		value, err := o.secrets.GetProviderSecret(name, field.Name)
-		if err != nil || strings.TrimSpace(value) == "" {
-			if field.Required {
-				return fmt.Errorf("missing required credential: %s", field.Name)
-			}
-			continue
-		}
-		credentials[field.Name] = value
 	}
-	if len(credentials) > 0 {
-		_ = prov.Configure(Config{Credentials: credentials})
+
+	if err := o.providers.EnsureProviderConfigured(resolvedName); err != nil {
+		return nil, err
 	}
-	return nil
+
+	prov := o.providers.GetProvider(resolvedName)
+	if prov == nil {
+		return nil, fmt.Errorf("provider not found: %s", name)
+	}
+	return prov, nil
 }

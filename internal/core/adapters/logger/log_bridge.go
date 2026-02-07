@@ -31,6 +31,7 @@ func (b *Logger) Log(entry LogEntry) {
 
 	// Create a sub-logger event based on the level
 	var event *zerolog.Event
+	severity := entry.Level
 	switch entry.Level {
 	case "trace":
 		event = b.logger.Trace()
@@ -48,6 +49,7 @@ func (b *Logger) Log(entry LogEntry) {
 		event = b.logger.Error()
 	default:
 		event = b.logger.Info()
+		severity = "info"
 	}
 
 	// Attach fields
@@ -56,7 +58,9 @@ func (b *Logger) Log(entry LogEntry) {
 	}
 	if entry.Level == "fatal" || entry.Level == "panic" {
 		event.Str("frontend_level", entry.Level)
+		event.Str("severity", entry.Level)
 	}
+	event.Str("frontend_severity", severity)
 
 	// Log with message
 	event.Msg(entry.Message)

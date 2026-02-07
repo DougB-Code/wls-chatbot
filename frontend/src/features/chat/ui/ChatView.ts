@@ -130,7 +130,7 @@ export class ChatView extends SignalWatcher(LitElement) {
     /**
      * track seen messages and enable animations after initial hydration.
      */
-    private _updateMessageTracking(messages: Array<{ id: string }>, hasConversation: boolean): void {
+    private _updateMessageTracking(messages: { id: string }[], hasConversation: boolean): void {
         this._lastMessageCount = messages.length;
         this._seenMessageIds = new Set(messages.map((message) => message.id));
 

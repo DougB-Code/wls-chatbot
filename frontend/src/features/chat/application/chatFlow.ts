@@ -54,6 +54,9 @@ export async function orchestrateSendMessage(
             .msg('Creating new conversation');
 
         const newConv = await client.createConversation(activeProvider.name, model);
+        if (!newConv?.id) {
+            throw new Error('Failed to create conversation');
+        }
         conversationId = newConv.id;
         log.info().str('conversationId', conversationId).msg('Conversation created');
         store.upsertConversation(newConv, true);

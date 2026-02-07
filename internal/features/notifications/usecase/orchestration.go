@@ -2,6 +2,8 @@
 // internal/features/notifications/usecase/orchestration.go
 package notifications
 
+import "fmt"
+
 // Orchestrator coordinates notification workflows for adapters.
 type Orchestrator struct {
 	service *Service
@@ -14,17 +16,13 @@ func NewOrchestrator(service *Service) *Orchestrator {
 }
 
 // CreateNotification persists a notification and returns the stored record.
-func (o *Orchestrator) CreateNotification(payload NotificationPayload) *Notification {
+func (o *Orchestrator) CreateNotification(payload NotificationPayload) (*Notification, error) {
 
 	if o == nil || o.service == nil {
-		return nil
+		return nil, fmt.Errorf("notifications service not configured")
 	}
 
-	notification, err := o.service.Create(payload)
-	if err != nil {
-		return nil
-	}
-	return notification
+	return o.service.Create(payload)
 }
 
 // ListNotifications returns stored notifications.

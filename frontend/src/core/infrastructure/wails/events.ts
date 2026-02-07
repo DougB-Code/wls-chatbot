@@ -3,18 +3,16 @@
  * frontend/src/core/infrastructure/wails/events.ts
  */
 
-import { EventsOn, EventsOff } from '../../../../wailsjs/runtime/runtime';
+import { EventsOn } from '../../../../wailsjs/runtime/runtime';
+
+/**
+ * describe a callback used to detach an event subscription.
+ */
+export type EventUnsubscribe = () => void;
 
 /**
  * subscribe to a named Wails event channel.
  */
-export function onEvent<T>(name: string, handler: (payload: T) => void): void {
-    EventsOn(name, handler as (payload: unknown) => void);
-}
-
-/**
- * unsubscribe from a named Wails event channel.
- */
-export function offEvent(name: string): void {
-    EventsOff(name);
+export function onEvent<T>(name: string, handler: (payload: T) => void): EventUnsubscribe {
+    return EventsOn(name, handler as (payload: unknown) => void);
 }

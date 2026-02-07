@@ -2,11 +2,18 @@
 // internal/core/adapters/wails/catalog_api.go
 package wails
 
-import "github.com/MadeByDoug/wls-chatbot/internal/features/catalog/usecase"
+import (
+	"fmt"
+
+	"github.com/MadeByDoug/wls-chatbot/internal/features/catalog/usecase"
+)
 
 // GetCatalogOverview returns the model catalog overview.
 func (b *Bridge) GetCatalogOverview() (catalog.CatalogOverview, error) {
 
+	if b.catalog == nil {
+		return catalog.CatalogOverview{}, fmt.Errorf("catalog orchestrator not configured")
+	}
 	return b.catalog.GetOverview(b.ctxOrBackground())
 }
 

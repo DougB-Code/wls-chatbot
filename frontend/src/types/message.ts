@@ -1,5 +1,6 @@
 /**
  * define UI-specific streaming types.
+ * frontend/src/types/message.ts
  */
 
 import type { StreamChunkPayload } from './events';

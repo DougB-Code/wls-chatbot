@@ -7,14 +7,14 @@ import { signal } from '@preact/signals-core';
 
 export type ToastType = 'info' | 'error';
 
-export type ToastMessage = {
+export interface ToastMessage {
     id: number;
     type: ToastType;
     title?: string;
     message: string;
     createdAt: number;
     durationMs: number;
-};
+}
 
 export const toasts = signal<ToastMessage[]>([]);
 

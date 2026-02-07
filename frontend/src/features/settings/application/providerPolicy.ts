@@ -4,10 +4,12 @@
  */
 
 import * as providerTransport from '../infrastructure/providerTransport';
-import { onEvent, offEvent } from '../../../core/infrastructure/wails/events';
+import { onEvent, type EventUnsubscribe } from '../../../core/infrastructure/wails/events';
 import { setProviders, setProviderBusy, setProviderError } from '../state/providerSignals';
+import { log } from '../../../lib/logger';
 
 let providerEventsInitialized = false;
+let unsubscribeProviderEvents: EventUnsubscribe | null = null;
 
 /**
  * attach provider-related backend event listeners.
@@ -15,8 +17,11 @@ let providerEventsInitialized = false;
 export function initProviderEvents(): void {
     if (providerEventsInitialized) return;
     providerEventsInitialized = true;
-    onEvent('providers:updated', () => {
-        void refreshProviders();
+    unsubscribeProviderEvents = onEvent('providers:updated', () => {
+        void refreshProviders().catch((err) => {
+            const message = err instanceof Error ? err.message : 'Unknown provider refresh error';
+            log.warn().str('error', message).msg('Failed to refresh providers after providers:updated event');
+        });
     });
 }
 
@@ -26,7 +31,10 @@ export function initProviderEvents(): void {
 export function teardownProviderEvents(): void {
     if (!providerEventsInitialized) return;
     providerEventsInitialized = false;
-    offEvent('providers:updated');
+    if (unsubscribeProviderEvents) {
+        unsubscribeProviderEvents();
+        unsubscribeProviderEvents = null;
+    }
 }
 
 /**
@@ -39,6 +47,7 @@ export async function refreshProviders(): Promise<void> {
         setProviders(list);
     } catch (err) {
         setProviderError((err as Error).message || 'Failed to load providers');
+        throw err;
     }
 }
 

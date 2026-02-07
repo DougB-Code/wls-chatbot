@@ -610,7 +610,7 @@ func loadBlocks(db *sql.DB, messageID string) ([]chatdomain.Block, error) {
 	if err != nil {
 		return nil, fmt.Errorf("chat repo: list blocks: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	blocks := make([]chatdomain.Block, 0)
 	for rows.Next() {
