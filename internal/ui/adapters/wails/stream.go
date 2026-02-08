@@ -14,11 +14,7 @@ func (b *Bridge) SendMessage(conversationID, content string) (*chatfeature.Messa
 	if b.app == nil || b.app.Conversations == nil {
 		return nil, fmt.Errorf("chat orchestrator not configured")
 	}
-	message, err := b.app.Conversations.SendMessage(b.ctxOrBackground(), conversationID, content)
-	if err != nil {
-		return nil, err
-	}
-	return mapAppMessage(message), nil
+	return b.app.Conversations.SendMessage(b.ctxOrBackground(), conversationID, content)
 }
 
 // StopStream cancels the currently running stream.

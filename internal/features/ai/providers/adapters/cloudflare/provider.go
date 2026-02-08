@@ -42,10 +42,7 @@ type Cloudflare struct {
 	displayName     string
 	baseURL         string
 	accountID       string
-	gatewayID       string
-	upstreamAPIKey  string
 	cloudflareToken string
-	gatewayToken    string
 	logger          Logger
 	models          []Model
 	client          HTTPClient
@@ -171,14 +168,6 @@ func (c *Cloudflare) SetLogger(logger Logger) {
 	}
 }
 
-// httpClient returns the configured HTTP client or a default client.
-func (c *Cloudflare) httpClient() HTTPClient {
-
-	if c.client == nil {
-		c.client = providerhttp.NewDefaultClient()
-	}
-	return c.client
-}
 
 // newSDKClient creates a new Cloudflare SDK client.
 func (c *Cloudflare) newSDKClient() (*cloudflare.API, error) {
@@ -369,19 +358,6 @@ func resolveModelName(model string) string {
 	return model
 }
 
-// logDebug writes debug output if a logger is configured.
-func (c *Cloudflare) logDebug(message string, fields ...LogField) {
-
-	if c.logger == nil {
-		return
-	}
-	c.logger.Debug(message, fields...)
-}
-
-// isWorkersAIBaseURL reports whether the base URL targets Workers AI directly.
-func isWorkersAIBaseURL(baseURL string) bool {
-	return strings.Contains(strings.ToLower(baseURL), "/workers-ai/")
-}
 
 // GenerateImage generates an image. Cloudflare Workers AI supports this, but implementation is pending specific model support verification.
 func (c *Cloudflare) GenerateImage(ctx context.Context, opts providergateway.ImageGenerationOptions) (*providergateway.ImageResult, error) {

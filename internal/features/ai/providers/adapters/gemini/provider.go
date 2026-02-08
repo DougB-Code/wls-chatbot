@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"sort"
 	"strings"
 
@@ -434,26 +433,6 @@ func (g *Gemini) EditImage(ctx context.Context, opts providergateway.ImageEditOp
 	// Logic for imagen-3.0-capability-image-editing-001 or newer equivalents
 	// Currently Imagen 4+ via genai SDK does not expose EditImage/Masking directly in the public docs provided.
 	// We will attempt to use the genai client if possible, but standard 'GenerateImages' is text-to-image.
-
-	return nil, fmt.Errorf("image editing is not currently supported by the genai library for Imagen 4 models (Text-to-Image only). Please use 'generate image' without an input image.")
+	return nil, fmt.Errorf("image editing is not currently supported by the genai library for Imagen 4 models")
 }
 
-// loadInputImage reads image from file path or returns error.
-func loadInputImage(input string) ([]byte, error) {
-	// Simple check: is it a file that exists?
-	// If not, is it valid base64?
-
-	// Try reading file first
-	data, err := os.ReadFile(input)
-	if err == nil {
-		return data, nil
-	}
-
-	// If read file fails, maybe it is base64?
-	decoded, err := base64.StdEncoding.DecodeString(input)
-	if err == nil {
-		return decoded, nil
-	}
-
-	return nil, fmt.Errorf("input is neither a valid file path nor base64 string")
-}

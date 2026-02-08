@@ -115,13 +115,6 @@ func (g *Grok) SetHTTPClient(client HTTPClient) {
 	}
 }
 
-// httpClient returns the configured HTTP client or a default client.
-func (g *Grok) httpClient() HTTPClient {
-	if g.client == nil {
-		g.client = providerhttp.NewDefaultClient()
-	}
-	return g.client
-}
 
 // TestConnection verifies the API is reachable.
 func (g *Grok) TestConnection(ctx context.Context) error {

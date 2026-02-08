@@ -57,6 +57,31 @@ func LoadProvidersFromRoot() {}
 
 - NEVER add code comments indicating where you made changes.
 
+## Go Backend Architecture
+
+```
+internal/
+├── app/           # Application facades (thin pass-through to features)
+├── core/          # Cross-cutting concerns (config, datastore, events, logger)
+├── features/      # Feature-first clean architecture
+│   └── ai/
+│       ├── chat/        # Conversations, messages, streaming
+│       ├── image/       # Image generation/editing
+│       ├── model/       # Model catalog
+│       └── providers/   # Provider adapters (OpenAI, Gemini, Grok, etc.)
+└── ui/
+    └── adapters/
+        ├── wails/   # Frontend bridge (Wails bindings)
+        └── cli/     # CLI commands
+```
+
+**Data flow:** `UI Adapters` → `App Facades` → `Feature Layer` → `Provider Adapters`
+
+**Key principles:**
+- Features own their domain types—no duplicate DTOs across layers
+- App facades are pass-through; they return feature types directly
+- Provider adapters implement a common interface (`Provider`) for chat/image operations
+
 ## Go conventions:
 - Add a single line space after the function signature if the first line is a comment.
 

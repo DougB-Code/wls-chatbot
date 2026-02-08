@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	appcontracts "github.com/MadeByDoug/wls-chatbot/internal/app/contracts"
+	providerfeature "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/provider"
 	"github.com/spf13/cobra"
 )
 
@@ -96,10 +96,6 @@ func newProviderTestCommand(deps Dependencies) *cobra.Command {
 func newProviderAddCommand(deps Dependencies) *cobra.Command {
 
 	var name string
-	var displayName string
-	var providerType string
-	var baseURL string
-	var defaultModel string
 	var credentials []string
 
 	cmd := &cobra.Command{
@@ -117,14 +113,7 @@ func newProviderAddCommand(deps Dependencies) *cobra.Command {
 				return err
 			}
 
-			_, err = applicationFacade.Providers.AddProvider(context.Background(), appcontracts.AddProviderRequest{
-				Name:         name,
-				DisplayName:  displayName,
-				Type:         providerType,
-				BaseURL:      baseURL,
-				DefaultModel: defaultModel,
-				Credentials:  credentialMap,
-			})
+			_, err = applicationFacade.Providers.AddProvider(context.Background(), name, providerfeature.ProviderCredentials(credentialMap))
 			if err != nil {
 				return err
 			}
@@ -136,10 +125,6 @@ func newProviderAddCommand(deps Dependencies) *cobra.Command {
 
 	cmd.Flags().StringVar(&name, "name", "", "Provider name")
 	_ = cmd.MarkFlagRequired("name")
-	cmd.Flags().StringVar(&displayName, "display-name", "", "Display name (optional)")
-	cmd.Flags().StringVar(&providerType, "type", "", "Provider type (optional)")
-	cmd.Flags().StringVar(&baseURL, "base-url", "", "Provider base URL (optional)")
-	cmd.Flags().StringVar(&defaultModel, "default-model", "", "Default model (optional)")
 	cmd.Flags().StringArrayVar(&credentials, "credential", nil, "Provider credential as key=value (repeat flag)")
 
 	return cmd
@@ -197,10 +182,7 @@ func newProviderCredentialsCommand(deps Dependencies) *cobra.Command {
 				return fmt.Errorf("at least one --credential key=value is required")
 			}
 
-			if err := applicationFacade.Providers.UpdateProviderCredentials(context.Background(), appcontracts.UpdateProviderCredentialsRequest{
-				ProviderName: name,
-				Credentials:  credentialMap,
-			}); err != nil {
+			if err := applicationFacade.Providers.UpdateProviderCredentials(context.Background(), name, providerfeature.ProviderCredentials(credentialMap)); err != nil {
 				return err
 			}
 

@@ -14,11 +14,7 @@ func (b *Bridge) CreateConversation(providerName, model string) (*chatfeature.Co
 	if b.app == nil || b.app.Conversations == nil {
 		return nil, fmt.Errorf("chat orchestrator not configured")
 	}
-	conversation, err := b.app.Conversations.CreateConversation(providerName, model)
-	if err != nil {
-		return nil, err
-	}
-	return mapAppConversation(conversation), nil
+	return b.app.Conversations.CreateConversation(providerName, model)
 }
 
 // SetActiveConversation sets the active conversation by ID.
@@ -36,7 +32,7 @@ func (b *Bridge) GetActiveConversation() *chatfeature.Conversation {
 	if b.app == nil || b.app.Conversations == nil {
 		return nil
 	}
-	return mapAppConversation(b.app.Conversations.GetActiveConversation())
+	return b.app.Conversations.GetActiveConversation()
 }
 
 // GetConversation returns a conversation by ID.
@@ -45,7 +41,7 @@ func (b *Bridge) GetConversation(id string) *chatfeature.Conversation {
 	if b.app == nil || b.app.Conversations == nil {
 		return nil
 	}
-	return mapAppConversation(b.app.Conversations.GetConversation(id))
+	return b.app.Conversations.GetConversation(id)
 }
 
 // ListConversations returns summaries of all conversations.
@@ -54,7 +50,7 @@ func (b *Bridge) ListConversations() []chatfeature.ConversationSummary {
 	if b.app == nil || b.app.Conversations == nil {
 		return nil
 	}
-	return mapAppConversationSummaries(b.app.Conversations.ListConversations())
+	return b.app.Conversations.ListConversations()
 }
 
 // ListDeletedConversations returns summaries of archived conversations.
@@ -63,7 +59,7 @@ func (b *Bridge) ListDeletedConversations() []chatfeature.ConversationSummary {
 	if b.app == nil || b.app.Conversations == nil {
 		return nil
 	}
-	return mapAppConversationSummaries(b.app.Conversations.ListDeletedConversations())
+	return b.app.Conversations.ListDeletedConversations()
 }
 
 // UpdateConversationModel updates the model for a conversation.

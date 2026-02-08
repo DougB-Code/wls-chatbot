@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	appcontracts "github.com/MadeByDoug/wls-chatbot/internal/app/contracts"
+	imageports "github.com/MadeByDoug/wls-chatbot/internal/features/ai/image/ports"
 	"github.com/spf13/cobra"
 )
 
@@ -42,7 +42,7 @@ func newImageGenerateCommand(deps Dependencies) *cobra.Command {
 			}
 
 			deps.BaseLogger.Info().Str("provider", providerName).Str("model", modelName).Msg("Generating image...")
-			result, err := applicationFacade.Images.GenerateImage(context.Background(), appcontracts.GenerateImageRequest{
+			result, err := applicationFacade.Images.GenerateImage(context.Background(), imageports.GenerateImageRequest{
 				ProviderName: providerName,
 				ModelName:    modelName,
 				Prompt:       prompt,
@@ -96,7 +96,7 @@ func newImageEditCommand(deps Dependencies) *cobra.Command {
 			}
 
 			deps.BaseLogger.Info().Str("provider", providerName).Str("model", modelName).Msg("Editing image...")
-			result, err := applicationFacade.Images.EditImage(context.Background(), appcontracts.EditImageRequest{
+			result, err := applicationFacade.Images.EditImage(context.Background(), imageports.EditImageRequest{
 				ProviderName: providerName,
 				ModelName:    modelName,
 				Prompt:       prompt,

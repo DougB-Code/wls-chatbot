@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	appcontracts "github.com/MadeByDoug/wls-chatbot/internal/app/contracts"
+	chatports "github.com/MadeByDoug/wls-chatbot/internal/features/ai/chat/ports"
 	"github.com/spf13/cobra"
 )
 
@@ -39,23 +39,23 @@ func newChatSendCommand(deps Dependencies) *cobra.Command {
 				return err
 			}
 
-			messages := make([]appcontracts.ChatMessage, 0, 2)
+			messages := make([]chatports.ChatMessage, 0, 2)
 			if systemPrompt != "" {
-				messages = append(messages, appcontracts.ChatMessage{
-					Role:    appcontracts.ChatRoleSystem,
+				messages = append(messages, chatports.ChatMessage{
+					Role:    chatports.ChatRoleSystem,
 					Content: systemPrompt,
 				})
 			}
-			messages = append(messages, appcontracts.ChatMessage{
-				Role:    appcontracts.ChatRoleUser,
+			messages = append(messages, chatports.ChatMessage{
+				Role:    chatports.ChatRoleUser,
 				Content: prompt,
 			})
 
-			chunks, err := applicationFacade.Chat.Chat(context.Background(), appcontracts.ChatRequest{
+			chunks, err := applicationFacade.Chat.Chat(context.Background(), chatports.ChatRequest{
 				ProviderName: providerName,
 				ModelName:    modelName,
 				Messages:     messages,
-				Options: appcontracts.ChatOptions{
+				Options: chatports.ChatOptions{
 					Stream: true,
 				},
 			})

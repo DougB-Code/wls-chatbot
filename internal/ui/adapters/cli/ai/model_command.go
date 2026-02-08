@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	appcontracts "github.com/MadeByDoug/wls-chatbot/internal/app/contracts"
+	modelinterfaces "github.com/MadeByDoug/wls-chatbot/internal/features/ai/model/interfaces"
 	"github.com/spf13/cobra"
 )
 
@@ -44,7 +44,7 @@ func newModelListCommand(deps Dependencies) *cobra.Command {
 				return err
 			}
 
-			summaries, err := applicationFacade.Models.ListModels(context.Background(), appcontracts.ModelListFilter{
+			summaries, err := applicationFacade.Models.ListModels(context.Background(), modelinterfaces.ModelListFilter{
 				Source:                   source,
 				RequiredInputModalities:  requiredInputModalities,
 				RequiredOutputModalities: requiredOutputModalities,
@@ -91,7 +91,7 @@ func newModelImportCommand(deps Dependencies) *cobra.Command {
 				return err
 			}
 
-			if err := applicationFacade.Models.ImportModels(context.Background(), appcontracts.ImportModelsRequest{
+			if err := applicationFacade.Models.ImportModels(context.Background(), modelinterfaces.ImportModelsRequest{
 				FilePath: filePath,
 			}); err != nil {
 				return err
