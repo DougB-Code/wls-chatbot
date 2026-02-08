@@ -52,7 +52,7 @@ wls-chatbot provider test --name <provider> [--db-path <path>]
 
 ## Custom Models
 
-Place custom model definitions in `<os-user-config-dir>/wls-chatbot/custom-models.yaml` (same structure as `internal/core/adapters/datastore/seeds/models.yaml`).
+Place custom model definitions in `<os-user-config-dir>/wls-chatbot/custom-models.yaml` (same structure as `pkg/models/models.yaml`).
 
 Examples:
 - Linux: `~/.config/wls-chatbot/custom-models.yaml`

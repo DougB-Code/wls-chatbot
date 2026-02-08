@@ -277,7 +277,56 @@ export namespace catalog {
 
 }
 
-export namespace chat {
+export namespace core {
+	
+	export class CredentialField {
+	    name: string;
+	    label: string;
+	    required: boolean;
+	    secret: boolean;
+	    placeholder?: string;
+	    help?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CredentialField(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.label = source["label"];
+	        this.required = source["required"];
+	        this.secret = source["secret"];
+	        this.placeholder = source["placeholder"];
+	        this.help = source["help"];
+	    }
+	}
+	export class Model {
+	    id: string;
+	    name: string;
+	    contextWindow: number;
+	    supportsStreaming: boolean;
+	    supportsTools: boolean;
+	    supportsVision: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Model(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.contextWindow = source["contextWindow"];
+	        this.supportsStreaming = source["supportsStreaming"];
+	        this.supportsTools = source["supportsTools"];
+	        this.supportsVision = source["supportsVision"];
+	    }
+	}
+
+}
+
+export namespace domain {
 	
 	export class ActionExecution {
 	    id: string;
@@ -525,59 +574,6 @@ export namespace chat {
 	    }
 	}
 	
-
-}
-
-export namespace core {
-	
-	export class CredentialField {
-	    name: string;
-	    label: string;
-	    required: boolean;
-	    secret: boolean;
-	    placeholder?: string;
-	    help?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new CredentialField(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.name = source["name"];
-	        this.label = source["label"];
-	        this.required = source["required"];
-	        this.secret = source["secret"];
-	        this.placeholder = source["placeholder"];
-	        this.help = source["help"];
-	    }
-	}
-	export class Model {
-	    id: string;
-	    name: string;
-	    contextWindow: number;
-	    supportsStreaming: boolean;
-	    supportsTools: boolean;
-	    supportsVision: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new Model(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.name = source["name"];
-	        this.contextWindow = source["contextWindow"];
-	        this.supportsStreaming = source["supportsStreaming"];
-	        this.supportsTools = source["supportsTools"];
-	        this.supportsVision = source["supportsVision"];
-	    }
-	}
-
-}
-
-export namespace domain {
 	
 	export class Notification {
 	    id: number;

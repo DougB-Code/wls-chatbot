@@ -1,0 +1,464 @@
+providers:
+  - id: openai
+    name: openai
+    type: openai
+    display_name: OpenAI
+    base_url: https://api.openai.com/v1
+
+  - id: google
+    name: gemini
+    type: gemini
+    display_name: Google Gemini
+    base_url: https://generativelanguage.googleapis.com/v1beta
+
+  - id: grok
+    name: grok
+    type: grok
+    display_name: Grok (xAI)
+    base_url: https://api.x.ai/v1
+
+families:
+
+  # OpenAI Model Families
+  - id: gpt-4o
+    provider: openai
+    modalities:
+      input:
+        - text
+        - image
+      output:
+        - text
+    capabilities:
+      streaming: true
+      tool_calling: true
+      structured_output: true
+      vision: true
+    system_tags:
+      - general
+      - multimodal_in
+  
+  - id: gpt-4o-mini
+    provider: openai
+    modalities:
+      input:
+        - text
+        - image
+      output:
+        - text
+    capabilities:
+      streaming: true
+      tool_calling: true
+      structured_output: true
+      vision: true
+    system_tags:
+      - general
+      - fast
+      - cost_efficient
+      - multimodal_in
+  
+  - id: o1
+    provider: openai
+    modalities:
+      input:
+        - text
+        - image
+      output:
+        - text
+    capabilities:
+      streaming: true
+      tool_calling: true
+      structured_output: true
+      vision: true
+    system_tags:
+      - reasoning
+      - multimodal_in
+  
+  - id: o1-mini
+    provider: openai
+    modalities:
+      input:
+        - text
+      output:
+        - text
+    capabilities:
+      streaming: true
+      tool_calling: true
+      structured_output: true
+      vision: false
+    system_tags:
+      - reasoning
+      - fast
+      - cost_efficient
+  
+  - id: dall-e-3
+    provider: openai
+    modalities:
+      input:
+        - text
+      output:
+        - image
+    capabilities:
+      streaming: false
+      tool_calling: false
+      structured_output: false
+      vision: false
+    system_tags:
+      - image_gen
+  
+  # Google Model Families
+  - id: gemini-2.0-flash
+    provider: google
+    modalities:
+      input:
+        - text
+        - image
+        - video
+        - audio
+      output:
+        - text
+    capabilities:
+      streaming: true
+      tool_calling: true
+      structured_output: true
+      vision: true
+    system_tags:
+      - general
+      - fast
+      - multimodal_in
+  
+  - id: gemini-1.5-pro
+    provider: google
+    modalities:
+      input:
+        - text
+        - image
+        - video
+        - audio
+      output:
+        - text
+    capabilities:
+      streaming: true
+      tool_calling: true
+      structured_output: true
+      vision: true
+    system_tags:
+      - general
+      - multimodal_in
+  
+  - id: imagen-4.0
+    provider: google
+    modalities:
+      input:
+        - text
+      output:
+        - image
+    capabilities:
+      streaming: false
+      tool_calling: false
+      structured_output: false
+      vision: false
+    system_tags:
+      - image_gen
+
+  # Grok Model Families
+  - id: grok-4-1-fast-reasoning
+    provider: grok
+    modalities:
+      input:
+        - text
+        - image
+      output:
+        - text
+    capabilities:
+      streaming: true
+      tool_calling: true
+      structured_output: true
+      vision: true
+    system_tags:
+      - reasoning
+      - fast
+      - multimodal_in
+  
+  - id: grok-4-1-fast-non-reasoning
+    provider: grok
+    modalities:
+      input:
+        - text
+        - image
+      output:
+        - text
+    capabilities:
+      streaming: true
+      tool_calling: true
+      structured_output: false
+      vision: true
+    system_tags:
+      - non_reasoning
+      - fast
+      - multimodal_in
+  
+  - id: grok-code-fast-1
+    provider: grok
+    modalities:
+      input:
+        - text
+      output:
+        - text
+    capabilities:
+      streaming: true
+      tool_calling: true
+      structured_output: true
+      vision: false
+    system_tags:
+      - coding
+      - fast
+  
+  - id: grok-4-fast-reasoning
+    provider: grok
+    modalities:
+      input:
+        - text
+        - image
+      output:
+        - text
+    capabilities:
+      streaming: true
+      tool_calling: true
+      structured_output: true
+      vision: true
+    system_tags:
+      - reasoning
+      - fast
+      - multimodal_in
+  
+  - id: grok-4-fast-non-reasoning
+    provider: grok
+    modalities:
+      input:
+        - text
+        - image
+      output:
+        - text
+    capabilities:
+      streaming: true
+      tool_calling: true
+      structured_output: false
+      vision: true
+    system_tags:
+      - non_reasoning
+      - fast
+      - multimodal_in
+  
+  - id: grok-4-0709
+    provider: grok
+    modalities:
+      input:
+        - text
+        - image
+      output:
+        - text
+    capabilities:
+      streaming: true
+      tool_calling: true
+      structured_output: true
+      vision: true
+    system_tags:
+      - general
+      - multimodal_in
+  
+  - id: grok-3-mini
+    provider: grok
+    modalities:
+      input:
+        - text
+      output:
+        - text
+    capabilities:
+      streaming: true
+      tool_calling: true
+      structured_output: true
+      vision: false
+    system_tags:
+      - general
+      - fast
+      - cost_efficient
+  
+  - id: grok-3
+    provider: grok
+    modalities:
+      input:
+        - text
+      output:
+        - text
+    capabilities:
+      streaming: true
+      tool_calling: true
+      structured_output: false
+      vision: false
+    system_tags:
+      - general
+  
+  - id: grok-2-vision-1212
+    provider: grok
+    modalities:
+      input:
+        - text
+        - image
+      output:
+        - text
+    capabilities:
+      streaming: true
+      tool_calling: true
+      structured_output: false
+      vision: true
+    system_tags:
+      - general
+      - multimodal_in
+      - legacy
+  
+  - id: grok-imagine-image-pro
+    provider: grok
+    modalities:
+      input:
+        - text
+        - image
+      output:
+        - image
+    capabilities:
+      streaming: false
+      tool_calling: false
+      structured_output: false
+      vision: true
+    system_tags:
+      - image_gen
+      - multimodal_in
+  
+  - id: grok-imagine-image
+    provider: grok
+    modalities:
+      input:
+        - text
+        - image
+      output:
+        - image
+    capabilities:
+      streaming: false
+      tool_calling: false
+      structured_output: false
+      vision: true
+    system_tags:
+      - image_gen
+      - multimodal_in
+      - cost_efficient
+  
+  - id: grok-2-image-1212
+    provider: grok
+    modalities:
+      input:
+        - text
+      output:
+        - image
+    capabilities:
+      streaming: false
+      tool_calling: false
+      structured_output: false
+      vision: false
+    system_tags:
+      - image_gen
+      - legacy
+  
+  - id: grok-imagine-video
+    provider: grok
+    modalities:
+      input:
+        - text
+        - image
+        - video
+      output:
+        - video
+    capabilities:
+      streaming: false
+      tool_calling: false
+      structured_output: false
+      vision: true
+    system_tags:
+      - video_gen
+      - multimodal_in
+
+
+models:
+
+  # OpenAI Models
+  - id: gpt-4o
+    family: gpt-4o
+    is_snapshot: false
+  
+  - id: gpt-4o-2024-11-20
+    family: gpt-4o
+    is_snapshot: true
+  
+  - id: gpt-4o-mini
+    family: gpt-4o-mini
+    is_snapshot: false
+  
+  - id: gpt-4o-mini-2024-07-18
+    family: gpt-4o-mini
+    is_snapshot: true
+  
+  - id: o1
+    family: o1
+    is_snapshot: false
+  
+  - id: o1-2024-12-17
+    family: o1
+    is_snapshot: true
+  
+  - id: o1-mini
+    family: o1-mini
+    is_snapshot: false
+  
+  - id: o1-mini-2024-09-12
+    family: o1-mini
+    is_snapshot: true
+  
+  - id: dall-e-3
+    family: dall-e-3
+    is_snapshot: false
+  
+  # Google Models
+  - id: gemini-2.0-flash-exp
+    family: gemini-2.0-flash
+    is_snapshot: false
+  
+  - id: gemini-1.5-pro-latest
+    family: gemini-1.5-pro
+    is_snapshot: false
+  
+  - id: imagen-4.0-generate-001
+    family: imagen-4.0
+    is_snapshot: true
+  
+  - id: imagen-4.0-fast-generate-001
+    family: imagen-4.0
+    is_snapshot: true
+  
+  - id: imagen-4.0-ultra-generate-001
+    family: imagen-4.0
+    is_snapshot: true
+
+  # Grok Models
+  - id: grok-4-1-fast-reasoning
+    family: grok-4-1-fast-reasoning
+    is_snapshot: false
+  
+  - id: grok-4-1-fast-non-reasoning
+    family: grok-4-1-fast-non-reasoning
+    is_snapshot: false
+  
+  - id: grok-code-fast-1
+    family: grok-code-fast-1
+    is_snapshot: false
+  
+  - id: grok-4-fast-reasoning
+    family: grok-4-fast-reasoning
+    is_snapshot: false

@@ -3,9 +3,8 @@
 import {catalog} from '../models';
 import {core} from '../models';
 import {provider} from '../models';
-import {chat} from '../models';
-import {notifications} from '../models';
 import {domain} from '../models';
+import {notifications} from '../models';
 import {interfaces} from '../models';
 
 export function AssignCatalogRole(arg1:string,arg2:string,arg3:string):Promise<catalog.RoleAssignmentResult>;
@@ -16,7 +15,7 @@ export function ConfigureProvider(arg1:string,arg2:core.ProviderCredentials):Pro
 
 export function ConnectProvider(arg1:string,arg2:core.ProviderCredentials):Promise<provider.Info>;
 
-export function CreateConversation(arg1:string,arg2:string):Promise<chat.Conversation>;
+export function CreateConversation(arg1:string,arg2:string):Promise<domain.Conversation>;
 
 export function CreateNotification(arg1:notifications.NotificationPayload):Promise<domain.Notification>;
 
@@ -32,21 +31,21 @@ export function EditImage(arg1:interfaces.EditImageRequest):Promise<interfaces.I
 
 export function GenerateImage(arg1:interfaces.GenerateImageRequest):Promise<interfaces.ImageBinaryResult>;
 
-export function GetActiveConversation():Promise<chat.Conversation>;
+export function GetActiveConversation():Promise<domain.Conversation>;
 
 export function GetActiveProvider():Promise<provider.Info>;
 
 export function GetCatalogOverview():Promise<catalog.CatalogOverview>;
 
-export function GetConversation(arg1:string):Promise<chat.Conversation>;
+export function GetConversation(arg1:string):Promise<domain.Conversation>;
 
 export function GetProviders():Promise<Array<provider.Info>>;
 
 export function ImportModels(arg1:string):Promise<void>;
 
-export function ListConversations():Promise<Array<chat.ConversationSummary>>;
+export function ListConversations():Promise<Array<domain.ConversationSummary>>;
 
-export function ListDeletedConversations():Promise<Array<chat.ConversationSummary>>;
+export function ListDeletedConversations():Promise<Array<domain.ConversationSummary>>;
 
 export function ListModels(arg1:string):Promise<Array<interfaces.ModelSummary>>;
 
@@ -64,7 +63,7 @@ export function RestoreConversation(arg1:string):Promise<boolean>;
 
 export function SaveCatalogRole(arg1:catalog.RoleSummary):Promise<catalog.RoleSummary>;
 
-export function SendMessage(arg1:string,arg2:string):Promise<chat.Message>;
+export function SendMessage(arg1:string,arg2:string):Promise<domain.Message>;
 
 export function SetActiveConversation(arg1:string):Promise<void>;
 
