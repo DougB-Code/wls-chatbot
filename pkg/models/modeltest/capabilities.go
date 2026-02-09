@@ -3,7 +3,6 @@ package modeltest
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -19,24 +18,14 @@ const (
 	CapabilityTestConnection Capability = "test_connection"
 )
 
-// AllCapabilities returns all available test capabilities.
-func AllCapabilities() []Capability {
-	return []Capability{
-		CapabilityChat,
-		CapabilityImageGen,
-		CapabilityImageEdit,
-		CapabilityTestConnection,
-	}
-}
-
 // TestResult contains the outcome of a capability test.
 type TestResult struct {
-	Provider   string      `json:"provider"`
-	Capability Capability  `json:"capability"`
-	Model      string      `json:"model"`
-	Success    bool        `json:"success"`
-	Error      string      `json:"error,omitempty"`
-	Recording  *Recording  `json:"recording,omitempty"`
+	Provider   string     `json:"provider"`
+	Capability Capability `json:"capability"`
+	Model      string     `json:"model"`
+	Success    bool       `json:"success"`
+	Error      string     `json:"error,omitempty"`
+	Recording  *Recording `json:"recording,omitempty"`
 }
 
 // CapabilityTester tests a specific capability.
@@ -239,13 +228,4 @@ func GetTester(cap Capability) CapabilityTester {
 	default:
 		return nil
 	}
-}
-
-// ParseResponse attempts to parse a response body as JSON.
-func ParseResponse(body []byte) (map[string]interface{}, error) {
-	var result map[string]interface{}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, err
-	}
-	return result, nil
 }

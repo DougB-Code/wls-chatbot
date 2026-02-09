@@ -5,11 +5,11 @@ package wails
 import (
 	"fmt"
 
-	chatfeature "github.com/MadeByDoug/wls-chatbot/internal/features/ai/chat/app/chat"
+	chatdomain "github.com/MadeByDoug/wls-chatbot/internal/features/ai/chat/domain"
 )
 
 // SendMessage sends a user message and initiates a streaming response.
-func (b *Bridge) SendMessage(conversationID, content string) (*chatfeature.Message, error) {
+func (b *Bridge) SendMessage(conversationID, content string) (*chatdomain.Message, error) {
 
 	if b.app == nil || b.app.Conversations == nil {
 		return nil, fmt.Errorf("chat orchestrator not configured")

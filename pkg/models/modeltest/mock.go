@@ -91,34 +91,3 @@ func (t *MockTransport) inferCapability(req *http.Request) string {
 type CapabilityMatcher interface {
 	Match(req *http.Request) string
 }
-
-// RequestMatcher compares incoming requests to golden file requests.
-type RequestMatcher struct {
-	IgnoreHeaders []string // Headers to ignore when matching
-	IgnoreFields  []string // JSON fields to ignore in body
-}
-
-// DefaultRequestMatcher returns a matcher with sensible defaults.
-func DefaultRequestMatcher() *RequestMatcher {
-	return &RequestMatcher{
-		IgnoreHeaders: []string{"Authorization", "X-Api-Key", "Date", "User-Agent"},
-		IgnoreFields:  []string{"user", "stream"},
-	}
-}
-
-// Matches checks if an incoming request matches a golden file request.
-func (m *RequestMatcher) Matches(req *http.Request, golden RecordedRequest) bool {
-	// Method must match
-	if req.Method != golden.Method {
-		return false
-	}
-
-	// Path must match (ignoring query params for now)
-	reqPath := req.URL.Path
-	goldenPath := strings.Split(golden.URL, "?")[0]
-	if !strings.HasSuffix(goldenPath, reqPath) && !strings.HasSuffix(reqPath, goldenPath) {
-		return false
-	}
-
-	return true
-}

@@ -335,22 +335,6 @@ func parseCapabilityIDsFromMetadata(metadata string) []string {
 	return uniqueNormalized(capabilityIDs)
 }
 
-// parseSystemTagsFromMetadata extracts model system tags from model metadata JSON.
-func parseSystemTagsFromMetadata(metadata string) []string {
-
-	parsed := parseMetadataObject(metadata)
-	if parsed == nil {
-		return nil
-	}
-
-	tags := make([]string, 0)
-	for _, key := range []string{"systemTags", "system_tags", "tags"} {
-		tags = append(tags, readStringSlice(parsed[key])...)
-	}
-
-	return uniqueNormalized(tags)
-}
-
 // containsAll reports whether every value in needles appears in haystack.
 func containsAll(haystack []string, needles []string) bool {
 

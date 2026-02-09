@@ -13,6 +13,7 @@ import (
 
 	"github.com/MadeByDoug/wls-chatbot/pkg/models/modeltest"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 func main() {
@@ -112,9 +113,7 @@ func newValidateCommand() *cobra.Command {
 				return nil
 			}
 
-			// Try loading as plan file
-			runner := modeltest.NewRunner(modeltest.DefaultRunnerConfig())
-			if err := runner.LoadPlan(path); err != nil {
+			if err := validatePlanFile(path); err != nil {
 				return fmt.Errorf("invalid plan file: %w", err)
 			}
 			fmt.Printf("✓ Valid test plan\n")
@@ -148,4 +147,18 @@ func exportReportJSON(report modeltest.Report, path string) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0644)
+}
+
+func validatePlanFile(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read plan file: %w", err)
+	}
+
+	var plan modeltest.TestPlan
+	if err := yaml.Unmarshal(data, &plan); err != nil {
+		return fmt.Errorf("parse plan: %w", err)
+	}
+
+	return nil
 }

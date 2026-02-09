@@ -28,7 +28,7 @@ func TestRegisterInAllowsRepeatedType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("register repeated signal: %v", err)
 	}
-	if first.Name() != second.Name() {
+	if first.name != second.name {
 		t.Fatalf("expected identical signal names")
 	}
 }

@@ -9,6 +9,8 @@ import (
 	"sync"
 
 	coreevents "github.com/MadeByDoug/wls-chatbot/internal/core/events"
+	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/core"
+	providergateway "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/gateway"
 )
 
 // Orchestrator orchestrates provider workflows and event emission.
@@ -21,7 +23,7 @@ type Orchestrator struct {
 }
 
 // NewOrchestrator creates a provider orchestrator with required dependencies.
-func NewOrchestrator(service *Service, _ SecretStore, emitter coreevents.Bus) *Orchestrator {
+func NewOrchestrator(service *Service, emitter coreevents.Bus) *Orchestrator {
 
 	return &Orchestrator{providers: service, emitter: emitter}
 }
@@ -34,9 +36,14 @@ func (o *Orchestrator) GetProviders() []Info {
 }
 
 // ConnectProvider connects and configures a provider with the given credentials.
-func (o *Orchestrator) ConnectProvider(ctx context.Context, name string, credentials ProviderCredentials) (Info, error) {
+func (o *Orchestrator) ConnectProvider(ctx context.Context, name string, credentials providercore.ProviderCredentials) (Info, error) {
 
-	info, err := o.providers.Connect(ctx, name, credentials)
+	normalizedName, err := normalizedProviderName(name)
+	if err != nil {
+		return Info{}, err
+	}
+
+	info, err := o.providers.Connect(ctx, normalizedName, credentials)
 	if err == nil {
 		o.emitProvidersUpdated()
 	}
@@ -44,13 +51,22 @@ func (o *Orchestrator) ConnectProvider(ctx context.Context, name string, credent
 }
 
 // ConfigureProvider updates a provider's credentials without full connection flow.
-func (o *Orchestrator) ConfigureProvider(name string, credentials ProviderCredentials) error {
+func (o *Orchestrator) ConfigureProvider(name string, credentials providercore.ProviderCredentials) error {
 
-	return o.providers.Configure(name, credentials)
+	normalizedName, err := normalizedProviderName(name)
+	if err != nil {
+		return err
+	}
+	return o.providers.Configure(normalizedName, credentials)
 }
 
 // DisconnectProvider removes a provider's credentials and resets its state.
 func (o *Orchestrator) DisconnectProvider(name string) error {
+
+	normalizedName, err := normalizedProviderName(name)
+	if err != nil {
+		return err
+	}
 
 	previousActive := o.providers.GetActiveProvider()
 	previousActiveName := ""
@@ -58,13 +74,13 @@ func (o *Orchestrator) DisconnectProvider(name string) error {
 		previousActiveName = previousActive.Name()
 	}
 
-	err := o.providers.Disconnect(name)
+	err = o.providers.Disconnect(normalizedName)
 	if err != nil {
 		return err
 	}
 
 	currentActive := o.providers.GetActiveProvider()
-	if previousActiveName == name && currentActive != nil && currentActive.Name() != name {
+	if previousActiveName == normalizedName && currentActive != nil && currentActive.Name() != normalizedName {
 		o.emitProviderSwitchToast(previousActive, currentActive)
 	}
 
@@ -89,7 +105,7 @@ func (o *Orchestrator) TestProvider(ctx context.Context, name string) error {
 }
 
 // GenerateImage generates an image through a configured provider.
-func (o *Orchestrator) GenerateImage(ctx context.Context, name string, options ImageGenerationOptions) (*ImageResult, error) {
+func (o *Orchestrator) GenerateImage(ctx context.Context, name string, options providergateway.ImageGenerationOptions) (*providergateway.ImageResult, error) {
 
 	prov, err := o.providerByName(name)
 	if err != nil {
@@ -102,7 +118,7 @@ func (o *Orchestrator) GenerateImage(ctx context.Context, name string, options I
 }
 
 // EditImage edits an image through a configured provider.
-func (o *Orchestrator) EditImage(ctx context.Context, name string, options ImageEditOptions) (*ImageResult, error) {
+func (o *Orchestrator) EditImage(ctx context.Context, name string, options providergateway.ImageEditOptions) (*providergateway.ImageResult, error) {
 
 	prov, err := o.providerByName(name)
 	if err != nil {
@@ -145,7 +161,7 @@ func (o *Orchestrator) emitProvidersUpdated() {
 }
 
 // emitProviderSwitchToast notifies the frontend about an automatic provider switch.
-func (o *Orchestrator) emitProviderSwitchToast(previousActive, currentActive Provider) {
+func (o *Orchestrator) emitProviderSwitchToast(previousActive, currentActive providercore.Provider) {
 
 	if o.emitter == nil || currentActive == nil {
 		return
@@ -222,17 +238,17 @@ func (o *Orchestrator) ensureActiveProviderAsync() {
 }
 
 // providerByName resolves and configures a provider before runtime operations.
-func (o *Orchestrator) providerByName(name string) (Provider, error) {
+func (o *Orchestrator) providerByName(name string) (providercore.Provider, error) {
 
-	trimmed := strings.TrimSpace(name)
-	if trimmed == "" {
-		return nil, fmt.Errorf("provider name required")
+	normalizedName, err := normalizedProviderName(name)
+	if err != nil {
+		return nil, err
 	}
 
-	resolvedName := trimmed
+	resolvedName := normalizedName
 	infos := o.providers.List()
 	for _, info := range infos {
-		if strings.EqualFold(info.Name, trimmed) {
+		if strings.EqualFold(info.Name, normalizedName) {
 			resolvedName = info.Name
 			break
 		}
@@ -247,4 +263,14 @@ func (o *Orchestrator) providerByName(name string) (Provider, error) {
 		return nil, fmt.Errorf("provider not found: %s", name)
 	}
 	return prov, nil
+}
+
+// normalizedProviderName validates and trims provider names.
+func normalizedProviderName(name string) (string, error) {
+
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return "", fmt.Errorf("provider name required")
+	}
+	return trimmed, nil
 }

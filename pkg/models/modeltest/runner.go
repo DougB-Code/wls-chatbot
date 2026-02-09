@@ -9,8 +9,6 @@ import (
 	"os"
 	"sync"
 	"time"
-
-	"gopkg.in/yaml.v3"
 )
 
 // RunnerConfig configures the test runner.
@@ -23,22 +21,12 @@ type RunnerConfig struct {
 	Timeout      time.Duration
 }
 
-// DefaultRunnerConfig returns sensible defaults.
-func DefaultRunnerConfig() RunnerConfig {
-	return RunnerConfig{
-		OutputDir: "testdata/golden",
-		Mode:      "mock",
-		Parallel:  1,
-		Timeout:   30 * time.Second,
-	}
-}
-
 // ProviderConfig describes a provider for testing.
 type ProviderConfig struct {
-	Name    string       `yaml:"name"`
-	Type    ProviderType `yaml:"type"`
-	BaseURL string       `yaml:"base_url"`
-	APIKey  string       `yaml:"-"` // From environment
+	Name    string        `yaml:"name"`
+	Type    ProviderType  `yaml:"type"`
+	BaseURL string        `yaml:"base_url"`
+	APIKey  string        `yaml:"-"`
 	Models  []ModelConfig `yaml:"models"`
 }
 
@@ -65,28 +53,6 @@ func NewRunner(config RunnerConfig) *Runner {
 	return &Runner{
 		config: config,
 	}
-}
-
-// LoadPlan loads the test plan from a YAML file.
-func (r *Runner) LoadPlan(path string) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("read plan file: %w", err)
-	}
-
-	var plan TestPlan
-	if err := yaml.Unmarshal(data, &plan); err != nil {
-		return fmt.Errorf("parse plan: %w", err)
-	}
-
-	// Load API keys from environment
-	for i := range plan.Providers {
-		envVar := fmt.Sprintf("%s_API_KEY", toEnvName(plan.Providers[i].Name))
-		plan.Providers[i].APIKey = os.Getenv(envVar)
-	}
-
-	r.plan = &plan
-	return nil
 }
 
 // LoadEmbeddedCatalogPlan derives and loads a test plan from the canonical model catalog.
@@ -263,23 +229,6 @@ func (r *Runner) shouldTestCapability(cap Capability) bool {
 		}
 	}
 	return false
-}
-
-// toEnvName converts a provider name to environment variable format.
-func toEnvName(name string) string {
-	result := ""
-	for _, c := range name {
-		if c >= 'a' && c <= 'z' {
-			result += string(c - 32) // uppercase
-		} else if c >= 'A' && c <= 'Z' {
-			result += string(c)
-		} else if c >= '0' && c <= '9' {
-			result += string(c)
-		} else {
-			result += "_"
-		}
-	}
-	return result
 }
 
 // Report contains aggregated test results.

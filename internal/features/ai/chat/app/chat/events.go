@@ -2,27 +2,30 @@
 // internal/features/ai/chat/app/chat/events.go
 package chat
 
-import coreevents "github.com/MadeByDoug/wls-chatbot/internal/core/events"
+import (
+	coreevents "github.com/MadeByDoug/wls-chatbot/internal/core/events"
+	chatdomain "github.com/MadeByDoug/wls-chatbot/internal/features/ai/chat/domain"
+)
 
 // MessageEventPayload represents message creation and stream-start event payloads.
 type MessageEventPayload struct {
-	ConversationID string   `json:"conversationId"`
-	MessageID      string   `json:"messageId"`
-	Timestamp      int64    `json:"ts"`
-	Message        *Message `json:"message,omitempty"`
+	ConversationID string              `json:"conversationId"`
+	MessageID      string              `json:"messageId"`
+	Timestamp      int64               `json:"ts"`
+	Message        *chatdomain.Message `json:"message,omitempty"`
 }
 
 // StreamChunkEventPayload represents streaming update, error, and completion payloads.
 type StreamChunkEventPayload struct {
-	ConversationID string           `json:"conversationId"`
-	MessageID      string           `json:"messageId"`
-	Timestamp      int64            `json:"ts"`
-	BlockIndex     int              `json:"blockIndex"`
-	Content        string           `json:"content"`
-	IsDone         bool             `json:"isDone"`
-	Metadata       *MessageMetadata `json:"metadata,omitempty"`
-	Error          string           `json:"error,omitempty"`
-	StatusCode     int              `json:"statusCode,omitempty"`
+	ConversationID string                      `json:"conversationId"`
+	MessageID      string                      `json:"messageId"`
+	Timestamp      int64                       `json:"ts"`
+	BlockIndex     int                         `json:"blockIndex"`
+	Content        string                      `json:"content"`
+	IsDone         bool                        `json:"isDone"`
+	Metadata       *chatdomain.MessageMetadata `json:"metadata,omitempty"`
+	Error          string                      `json:"error,omitempty"`
+	StatusCode     int                         `json:"statusCode,omitempty"`
 }
 
 // ConversationTitleEventPayload represents conversation title update payloads.

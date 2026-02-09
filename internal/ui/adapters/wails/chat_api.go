@@ -5,11 +5,11 @@ package wails
 import (
 	"fmt"
 
-	chatfeature "github.com/MadeByDoug/wls-chatbot/internal/features/ai/chat/app/chat"
+	chatdomain "github.com/MadeByDoug/wls-chatbot/internal/features/ai/chat/domain"
 )
 
 // CreateConversation creates a new conversation with the given settings.
-func (b *Bridge) CreateConversation(providerName, model string) (*chatfeature.Conversation, error) {
+func (b *Bridge) CreateConversation(providerName, model string) (*chatdomain.Conversation, error) {
 
 	if b.app == nil || b.app.Conversations == nil {
 		return nil, fmt.Errorf("chat orchestrator not configured")
@@ -27,7 +27,7 @@ func (b *Bridge) SetActiveConversation(id string) {
 }
 
 // GetActiveConversation returns the currently active conversation.
-func (b *Bridge) GetActiveConversation() *chatfeature.Conversation {
+func (b *Bridge) GetActiveConversation() *chatdomain.Conversation {
 
 	if b.app == nil || b.app.Conversations == nil {
 		return nil
@@ -36,7 +36,7 @@ func (b *Bridge) GetActiveConversation() *chatfeature.Conversation {
 }
 
 // GetConversation returns a conversation by ID.
-func (b *Bridge) GetConversation(id string) *chatfeature.Conversation {
+func (b *Bridge) GetConversation(id string) *chatdomain.Conversation {
 
 	if b.app == nil || b.app.Conversations == nil {
 		return nil
@@ -45,7 +45,7 @@ func (b *Bridge) GetConversation(id string) *chatfeature.Conversation {
 }
 
 // ListConversations returns summaries of all conversations.
-func (b *Bridge) ListConversations() []chatfeature.ConversationSummary {
+func (b *Bridge) ListConversations() []chatdomain.ConversationSummary {
 
 	if b.app == nil || b.app.Conversations == nil {
 		return nil
@@ -54,7 +54,7 @@ func (b *Bridge) ListConversations() []chatfeature.ConversationSummary {
 }
 
 // ListDeletedConversations returns summaries of archived conversations.
-func (b *Bridge) ListDeletedConversations() []chatfeature.ConversationSummary {
+func (b *Bridge) ListDeletedConversations() []chatdomain.ConversationSummary {
 
 	if b.app == nil || b.app.Conversations == nil {
 		return nil

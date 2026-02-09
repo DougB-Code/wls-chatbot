@@ -3,11 +3,10 @@
 package ai
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
-	providerfeature "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/app/provider"
+	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/core"
 	"github.com/spf13/cobra"
 )
 
@@ -42,10 +41,7 @@ func newProviderListCommand(deps Dependencies) *cobra.Command {
 				return err
 			}
 
-			providers, err := applicationFacade.Providers.GetProviders(context.Background())
-			if err != nil {
-				return err
-			}
+			providers := applicationFacade.Providers.GetProviders()
 
 			fmt.Printf("%-15s %-25s %-10s %-10s\n", "NAME", "DISPLAY NAME", "CONNECTED", "ACTIVE")
 			fmt.Println(strings.Repeat("-", 70))
@@ -82,7 +78,7 @@ func newProviderTestCommand(deps Dependencies) *cobra.Command {
 			}
 
 			fmt.Printf("Testing connection to %s...\n", providerName)
-			if err := applicationFacade.Providers.TestProvider(context.Background(), providerName); err != nil {
+			if err := applicationFacade.Providers.TestProvider(cmd.Context(), providerName); err != nil {
 				fmt.Printf("Connection failed: %v\n", err)
 				return err
 			}
@@ -116,7 +112,7 @@ func newProviderAddCommand(deps Dependencies) *cobra.Command {
 				return err
 			}
 
-			_, err = applicationFacade.Providers.AddProvider(context.Background(), name, providerfeature.ProviderCredentials(credentialMap))
+			_, err = applicationFacade.Providers.ConnectProvider(cmd.Context(), name, providercore.ProviderCredentials(credentialMap))
 			if err != nil {
 				return err
 			}
@@ -147,7 +143,7 @@ func newProviderRemoveCommand(deps Dependencies) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := applicationFacade.Providers.RemoveProvider(context.Background(), name); err != nil {
+			if err := applicationFacade.Providers.DisconnectProvider(name); err != nil {
 				return err
 			}
 
@@ -185,7 +181,7 @@ func newProviderCredentialsCommand(deps Dependencies) *cobra.Command {
 				return fmt.Errorf("at least one --credential key=value is required")
 			}
 
-			if err := applicationFacade.Providers.UpdateProviderCredentials(context.Background(), name, providerfeature.ProviderCredentials(credentialMap)); err != nil {
+			if err := applicationFacade.Providers.ConfigureProvider(name, providercore.ProviderCredentials(credentialMap)); err != nil {
 				return err
 			}
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	application "github.com/MadeByDoug/wls-chatbot/internal/app"
+	appwire "github.com/MadeByDoug/wls-chatbot/internal/app/wire"
 )
 
 // loadApp builds the application facade using root-resolved dependencies.
@@ -19,16 +20,11 @@ func loadApp(deps Dependencies) (*application.App, error) {
 		return nil, fmt.Errorf("cli ai adapter: %w", err)
 	}
 
-	applicationFacade, err := buildApp(
-		deps.BaseLogger,
-		deps.Config,
-		deps.DB,
-		deps.AppName,
-		deps.KeyringServiceName,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return applicationFacade, nil
+	return appwire.NewApp(appwire.Dependencies{
+		Log:                deps.BaseLogger,
+		Config:             deps.Config,
+		DB:                 deps.DB,
+		AppName:            deps.AppName,
+		KeyringServiceName: deps.KeyringServiceName,
+	})
 }

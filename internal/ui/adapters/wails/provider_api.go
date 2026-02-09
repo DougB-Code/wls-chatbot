@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	providerfeature "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/app/provider"
+	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/core"
 )
 
 // GetProviders returns all available providers with their status.
@@ -14,31 +15,26 @@ func (b *Bridge) GetProviders() []providerfeature.Info {
 	if b.app == nil || b.app.Providers == nil {
 		return nil
 	}
-
-	infos, err := b.app.Providers.GetProviders(b.ctxOrBackground())
-	if err != nil {
-		return nil
-	}
-	return infos
+	return b.app.Providers.GetProviders()
 }
 
 // ConnectProvider connects and configures a provider with the given credentials.
-func (b *Bridge) ConnectProvider(name string, credentials providerfeature.ProviderCredentials) (providerfeature.Info, error) {
+func (b *Bridge) ConnectProvider(name string, credentials providercore.ProviderCredentials) (providerfeature.Info, error) {
 
 	if b.app == nil || b.app.Providers == nil {
 		return providerfeature.Info{}, fmt.Errorf("provider interface not configured")
 	}
 
-	return b.app.Providers.AddProvider(b.ctxOrBackground(), name, credentials)
+	return b.app.Providers.ConnectProvider(b.ctxOrBackground(), name, credentials)
 }
 
 // ConfigureProvider updates a provider's credentials without full connection flow.
-func (b *Bridge) ConfigureProvider(name string, credentials providerfeature.ProviderCredentials) error {
+func (b *Bridge) ConfigureProvider(name string, credentials providercore.ProviderCredentials) error {
 
 	if b.app == nil || b.app.Providers == nil {
 		return fmt.Errorf("provider interface not configured")
 	}
-	return b.app.Providers.UpdateProviderCredentials(b.ctxOrBackground(), name, credentials)
+	return b.app.Providers.ConfigureProvider(name, credentials)
 }
 
 // DisconnectProvider removes a provider's credentials and resets its state.
@@ -47,7 +43,7 @@ func (b *Bridge) DisconnectProvider(name string) error {
 	if b.app == nil || b.app.Providers == nil {
 		return fmt.Errorf("provider interface not configured")
 	}
-	return b.app.Providers.RemoveProvider(b.ctxOrBackground(), name)
+	return b.app.Providers.DisconnectProvider(name)
 }
 
 // SetActiveProvider sets the active provider by name.

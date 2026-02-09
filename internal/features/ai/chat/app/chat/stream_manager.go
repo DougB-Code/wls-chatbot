@@ -5,22 +5,15 @@ package chat
 import (
 	"context"
 	"sync"
-	"time"
 )
-
-// streamInfo captures metadata about the active stream.
-type streamInfo struct {
-	conversationID string
-	messageID      string
-	startedAt      time.Time
-	cancelled      bool
-}
 
 // streamManager controls the lifecycle of a single active stream.
 type streamManager struct {
-	mu     sync.Mutex
-	cancel context.CancelFunc
-	info   *streamInfo
+	mu             sync.Mutex
+	cancel         context.CancelFunc
+	conversationID string
+	messageID      string
+	cancelled      bool
 }
 
 // newStreamManager constructs a stream manager.
@@ -38,19 +31,17 @@ func (s *streamManager) start(conversationID, messageID string, cancel context.C
 		s.cancel()
 	}
 	s.cancel = cancel
-	s.info = &streamInfo{
-		conversationID: conversationID,
-		messageID:      messageID,
-		startedAt:      time.Now(),
-	}
+	s.conversationID = conversationID
+	s.messageID = messageID
+	s.cancelled = false
 }
 
 // stop cancels the active stream if present.
 func (s *streamManager) stop() {
 
 	s.mu.Lock()
-	if s.info != nil {
-		s.info.cancelled = true
+	if s.messageID != "" {
+		s.cancelled = true
 	}
 	cancel := s.cancel
 	s.mu.Unlock()
@@ -64,13 +55,13 @@ func (s *streamManager) wasCancelled(conversationID, messageID string) bool {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.info == nil {
+	if s.messageID == "" {
 		return false
 	}
-	if s.info.conversationID != conversationID || s.info.messageID != messageID {
+	if s.conversationID != conversationID || s.messageID != messageID {
 		return false
 	}
-	return s.info.cancelled
+	return s.cancelled
 }
 
 // clear removes the active stream if it matches the given identifiers.
@@ -78,10 +69,12 @@ func (s *streamManager) clear(conversationID, messageID string) {
 
 	var cancel context.CancelFunc
 	s.mu.Lock()
-	if s.info != nil && s.info.conversationID == conversationID && s.info.messageID == messageID {
+	if s.conversationID == conversationID && s.messageID == messageID {
 		cancel = s.cancel
 		s.cancel = nil
-		s.info = nil
+		s.conversationID = ""
+		s.messageID = ""
+		s.cancelled = false
 	}
 	s.mu.Unlock()
 	if cancel != nil {

@@ -20,16 +20,6 @@ import (
 	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/core"
 )
 
-// LoadProvidersFromStore loads providers from configuration storage.
-func LoadProvidersFromStore(store config.Store, secrets providercore.SecretStore) ([]providercore.Provider, error) {
-
-	cfg, err := config.LoadConfig(store)
-	if err != nil {
-		return nil, err
-	}
-	return ProvidersFromConfig(cfg, secrets, nil)
-}
-
 // ProvidersFromConfig constructs providers from configuration.
 func ProvidersFromConfig(cfg config.AppConfig, secrets providercore.SecretStore, logger corelogger.Logger) ([]providercore.Provider, error) {
 

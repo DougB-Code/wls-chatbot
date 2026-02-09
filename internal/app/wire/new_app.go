@@ -72,7 +72,7 @@ func NewApp(deps Dependencies) (*app.App, error) {
 	chatService := chatfeature.NewService(chatRepo)
 	chatCompletionService := chatfeature.NewChatService(registry, secrets)
 
-	providerOrchestrator := providerfeature.NewOrchestrator(providerService, secrets, deps.Events)
+	providerOrchestrator := providerfeature.NewOrchestrator(providerService, deps.Events)
 	conversationOrchestrator := chatfeature.NewOrchestrator(chatService, chatCompletionService, deps.Events)
 	modelService := modelfeature.NewModelService(
 		nil,
@@ -84,11 +84,11 @@ func NewApp(deps Dependencies) (*app.App, error) {
 	)
 	imageService := imagefeature.NewService(providerOrchestrator, imageresolver.NewHTTPResolver(nil))
 
-	return app.New(app.Dependencies{
-		Providers:     app.NewProviderManagement(providerOrchestrator),
-		Models:        app.NewModelCatalog(modelService),
-		Images:        app.NewImageOperations(imageService),
-		Chat:          app.NewChatCompletion(chatCompletionService),
-		Conversations: app.NewConversationManagement(conversationOrchestrator),
-	}), nil
+	return &app.App{
+		Providers:     providerOrchestrator,
+		Models:        modelService,
+		Images:        imageService,
+		Chat:          chatCompletionService,
+		Conversations: conversationOrchestrator,
+	}, nil
 }

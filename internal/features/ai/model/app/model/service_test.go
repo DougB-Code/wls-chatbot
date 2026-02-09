@@ -40,17 +40,6 @@ func TestParseCapabilityIDsFromMetadataReadsKnownKeys(t *testing.T) {
 	}
 }
 
-// TestParseSystemTagsFromMetadataReadsKnownKeys validates system tag metadata parsing.
-func TestParseSystemTagsFromMetadataReadsKnownKeys(t *testing.T) {
-
-	metadata := `{"systemTags":["image_edit"],"tags":["vision_segmentation_image"]}`
-	systemTags := parseSystemTagsFromMetadata(metadata)
-
-	if !containsAll(systemTags, []string{"image_edit", "vision_segmentation_image"}) {
-		t.Fatalf("expected system tags parsed from metadata, got %#v", systemTags)
-	}
-}
-
 // TestMatchesModelFilterByCapabilities validates capability-aware model filtering.
 func TestMatchesModelFilterByCapabilities(t *testing.T) {
 

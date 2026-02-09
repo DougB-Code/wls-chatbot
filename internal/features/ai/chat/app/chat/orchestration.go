@@ -10,6 +10,7 @@ import (
 	"time"
 
 	coreevents "github.com/MadeByDoug/wls-chatbot/internal/core/events"
+	chatdomain "github.com/MadeByDoug/wls-chatbot/internal/features/ai/chat/domain"
 	chatports "github.com/MadeByDoug/wls-chatbot/internal/features/ai/chat/ports"
 )
 
@@ -33,9 +34,9 @@ func NewOrchestrator(chatService *Service, completionService chatports.ChatInter
 }
 
 // CreateConversation creates a new conversation with the given settings.
-func (o *Orchestrator) CreateConversation(providerName, model string) (*Conversation, error) {
+func (o *Orchestrator) CreateConversation(providerName, model string) (*chatdomain.Conversation, error) {
 
-	return o.service.CreateConversation(ConversationSettings{
+	return o.service.CreateConversation(chatdomain.ConversationSettings{
 		Provider: providerName,
 		Model:    model,
 	})
@@ -48,7 +49,7 @@ func (o *Orchestrator) SetActiveConversation(id string) {
 }
 
 // GetActiveConversation returns the currently active conversation.
-func (o *Orchestrator) GetActiveConversation() *Conversation {
+func (o *Orchestrator) GetActiveConversation() *chatdomain.Conversation {
 
 	id := o.service.ActiveConversationID()
 	if id == "" {
@@ -58,19 +59,19 @@ func (o *Orchestrator) GetActiveConversation() *Conversation {
 }
 
 // GetConversation returns a conversation by ID.
-func (o *Orchestrator) GetConversation(id string) *Conversation {
+func (o *Orchestrator) GetConversation(id string) *chatdomain.Conversation {
 
 	return o.service.GetConversation(id)
 }
 
 // ListConversations returns summaries of all conversations.
-func (o *Orchestrator) ListConversations() []ConversationSummary {
+func (o *Orchestrator) ListConversations() []chatdomain.ConversationSummary {
 
 	return o.service.ListConversations()
 }
 
 // ListDeletedConversations returns summaries of archived conversations.
-func (o *Orchestrator) ListDeletedConversations() []ConversationSummary {
+func (o *Orchestrator) ListDeletedConversations() []chatdomain.ConversationSummary {
 
 	return o.service.ListDeletedConversations()
 }
@@ -106,7 +107,7 @@ func (o *Orchestrator) PurgeConversation(id string) bool {
 }
 
 // SendMessage sends a user message and initiates a streaming response.
-func (o *Orchestrator) SendMessage(ctx context.Context, conversationID, content string) (*Message, error) {
+func (o *Orchestrator) SendMessage(ctx context.Context, conversationID, content string) (*chatdomain.Message, error) {
 
 	conversationID = strings.TrimSpace(conversationID)
 	content = strings.TrimSpace(content)
@@ -125,7 +126,7 @@ func (o *Orchestrator) SendMessage(ctx context.Context, conversationID, content 
 		return nil, fmt.Errorf("conversation archived: %s", conversationID)
 	}
 
-	userMsg := o.service.AddMessage(conversationID, RoleUser, content)
+	userMsg := o.service.AddMessage(conversationID, chatdomain.RoleUser, content)
 	if userMsg == nil {
 		return nil, fmt.Errorf("failed to persist user message for conversation: %s", conversationID)
 	}
@@ -149,7 +150,7 @@ func (o *Orchestrator) SendMessage(ctx context.Context, conversationID, content 
 		return userMsg, nil
 	}
 
-	streamMsg := o.service.CreateStreamingMessage(conversationID, RoleAssistant)
+	streamMsg := o.service.CreateStreamingMessage(conversationID, chatdomain.RoleAssistant)
 	if streamMsg == nil {
 		return userMsg, nil
 	}
@@ -227,12 +228,12 @@ func (o *Orchestrator) emitStreamError(conversationID, messageID string, err err
 		Content:        "",
 		IsDone:         true,
 		Error:          err.Error(),
-		StatusCode:     StatusCodeFromErr(err),
+		StatusCode:     chatdomain.StatusCodeFromErr(err),
 	})
 }
 
 // emitStreamComplete publishes a stream completion event.
-func (o *Orchestrator) emitStreamComplete(conversationID, messageID string, metadata *MessageMetadata) {
+func (o *Orchestrator) emitStreamComplete(conversationID, messageID string, metadata *chatdomain.MessageMetadata) {
 
 	coreevents.Emit(o.emitter, SignalStreamCompleted, StreamChunkEventPayload{
 		ConversationID: conversationID,
@@ -246,7 +247,7 @@ func (o *Orchestrator) emitStreamComplete(conversationID, messageID string, meta
 }
 
 // buildChatMessages builds the chat request message list.
-func (o *Orchestrator) buildChatMessages(conv *Conversation, streamingMessageID string) []chatports.ChatMessage {
+func (o *Orchestrator) buildChatMessages(conv *chatdomain.Conversation, streamingMessageID string) []chatports.ChatMessage {
 
 	conv.Lock()
 	defer conv.Unlock()
@@ -277,7 +278,7 @@ func (o *Orchestrator) buildChatMessages(conv *Conversation, streamingMessageID 
 }
 
 // textFromBlocks builds a text-only content string from message blocks.
-func textFromBlocks(blocks []Block) string {
+func textFromBlocks(blocks []chatdomain.Block) string {
 
 	if len(blocks) == 0 {
 		return ""
@@ -285,7 +286,7 @@ func textFromBlocks(blocks []Block) string {
 
 	var builder strings.Builder
 	for _, block := range blocks {
-		if block.Type == BlockTypeText {
+		if block.Type == chatdomain.BlockTypeText {
 			builder.WriteString(block.Content)
 		}
 	}
@@ -361,9 +362,9 @@ func (o *Orchestrator) buildMetadata(
 	usage *chatports.ChatUsage,
 	start time.Time,
 	err error,
-) *MessageMetadata {
+) *chatdomain.MessageMetadata {
 
-	meta := &MessageMetadata{
+	meta := &chatdomain.MessageMetadata{
 		Provider:     providerName,
 		Model:        model,
 		FinishReason: finishReason,
@@ -381,16 +382,16 @@ func (o *Orchestrator) buildMetadata(
 		}
 	}
 	if err != nil {
-		meta.StatusCode = StatusCodeFromErr(err)
+		meta.StatusCode = chatdomain.StatusCodeFromErr(err)
 		meta.ErrorMessage = err.Error()
 	}
 	return meta
 }
 
 // maybeAutoTitle updates the conversation title on the first user message.
-func (o *Orchestrator) maybeAutoTitle(conversationID string, message *Message) {
+func (o *Orchestrator) maybeAutoTitle(conversationID string, message *chatdomain.Message) {
 
-	if message.Role != RoleUser {
+	if message.Role != chatdomain.RoleUser {
 		return
 	}
 	conv := o.service.GetConversation(conversationID)

@@ -5,18 +5,21 @@ package chat
 import (
 	"sync"
 	"time"
+
+	chatdomain "github.com/MadeByDoug/wls-chatbot/internal/features/ai/chat/domain"
+	chatports "github.com/MadeByDoug/wls-chatbot/internal/features/ai/chat/ports"
 )
 
 // Service manages conversations and messages.
 type Service struct {
-	repo Repository
+	repo chatports.ChatRepository
 
 	mu           sync.RWMutex
 	activeConvID string
 }
 
 // NewService creates a new chat service with the provided repository.
-func NewService(repo Repository) *Service {
+func NewService(repo chatports.ChatRepository) *Service {
 
 	return &Service{
 		repo: repo,
@@ -24,9 +27,9 @@ func NewService(repo Repository) *Service {
 }
 
 // CreateConversation creates a new conversation with the given settings.
-func (s *Service) CreateConversation(settings ConversationSettings) (*Conversation, error) {
+func (s *Service) CreateConversation(settings chatdomain.ConversationSettings) (*chatdomain.Conversation, error) {
 
-	conv := NewConversation(settings)
+	conv := chatdomain.NewConversation(settings)
 	if err := s.repo.Create(conv); err != nil {
 		return nil, err
 	}
@@ -52,7 +55,7 @@ func (s *Service) ActiveConversationID() string {
 }
 
 // GetConversation retrieves a conversation by ID.
-func (s *Service) GetConversation(id string) *Conversation {
+func (s *Service) GetConversation(id string) *chatdomain.Conversation {
 
 	conv, err := s.repo.Get(id)
 	if err != nil {
@@ -65,25 +68,25 @@ func (s *Service) GetConversation(id string) *Conversation {
 }
 
 // ListConversations returns summaries of all conversations, sorted by updatedAt.
-func (s *Service) ListConversations() []ConversationSummary {
+func (s *Service) ListConversations() []chatdomain.ConversationSummary {
 
 	return s.listConversationsByArchivedStatus(false)
 }
 
 // ListDeletedConversations returns summaries for archived conversations.
-func (s *Service) ListDeletedConversations() []ConversationSummary {
+func (s *Service) ListDeletedConversations() []chatdomain.ConversationSummary {
 
 	return s.listConversationsByArchivedStatus(true)
 }
 
 // listConversationsByArchivedStatus returns summaries filtered by archive status.
-func (s *Service) listConversationsByArchivedStatus(archived bool) []ConversationSummary {
+func (s *Service) listConversationsByArchivedStatus(archived bool) []chatdomain.ConversationSummary {
 
 	convs, err := s.repo.List()
 	if err != nil {
 		return nil
 	}
-	summaries := make([]ConversationSummary, 0, len(convs))
+	summaries := make([]chatdomain.ConversationSummary, 0, len(convs))
 	for _, conv := range convs {
 		if conv.CheckIsArchived() == archived {
 			summaries = append(summaries, conv.GetSummary())
@@ -103,7 +106,7 @@ func (s *Service) listConversationsByArchivedStatus(archived bool) []Conversatio
 }
 
 // AddMessage adds a message to a conversation.
-func (s *Service) AddMessage(conversationID string, role Role, content string) *Message {
+func (s *Service) AddMessage(conversationID string, role chatdomain.Role, content string) *chatdomain.Message {
 
 	conv, err := s.repo.Get(conversationID)
 	if err != nil {
@@ -113,7 +116,7 @@ func (s *Service) AddMessage(conversationID string, role Role, content string) *
 		return nil
 	}
 
-	msg := NewMessage(conversationID, role, content)
+	msg := chatdomain.NewMessage(conversationID, role, content)
 	conv.AddMessage(msg)
 	if err := s.repo.Update(conv); err != nil {
 		return nil
@@ -141,7 +144,7 @@ func (s *Service) SetConversationTitle(conversationID, title string) bool {
 }
 
 // CreateStreamingMessage creates a new streaming message placeholder.
-func (s *Service) CreateStreamingMessage(conversationID string, role Role) *Message {
+func (s *Service) CreateStreamingMessage(conversationID string, role chatdomain.Role) *chatdomain.Message {
 
 	conv, err := s.repo.Get(conversationID)
 	if err != nil {
@@ -151,7 +154,7 @@ func (s *Service) CreateStreamingMessage(conversationID string, role Role) *Mess
 		return nil
 	}
 
-	msg := NewStreamingMessage(conversationID, role)
+	msg := chatdomain.NewStreamingMessage(conversationID, role)
 	conv.AddMessage(msg)
 	if err := s.repo.Update(conv); err != nil {
 		return nil
@@ -178,7 +181,7 @@ func (s *Service) AppendToMessage(conversationID, messageID string, blockIndex i
 		if msg.ID == messageID {
 			// Extend blocks if needed
 			for len(msg.Blocks) <= blockIndex {
-				msg.Blocks = append(msg.Blocks, Block{Type: BlockTypeText})
+				msg.Blocks = append(msg.Blocks, chatdomain.Block{Type: chatdomain.BlockTypeText})
 			}
 			msg.Blocks[blockIndex].Content += content
 			updated = true
@@ -196,7 +199,7 @@ func (s *Service) AppendToMessage(conversationID, messageID string, blockIndex i
 }
 
 // FinalizeMessage marks a streaming message as complete.
-func (s *Service) FinalizeMessage(conversationID, messageID string, metadata *MessageMetadata) bool {
+func (s *Service) FinalizeMessage(conversationID, messageID string, metadata *chatdomain.MessageMetadata) bool {
 
 	conv, err := s.repo.Get(conversationID)
 	if err != nil {

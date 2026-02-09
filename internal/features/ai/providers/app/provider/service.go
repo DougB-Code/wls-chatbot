@@ -10,20 +10,21 @@ import (
 	"sync"
 	"time"
 
+	corelogger "github.com/MadeByDoug/wls-chatbot/internal/core/logger"
 	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/core"
 )
 
 // Info represents provider information for the frontend.
 type Info struct {
-	Name             string            `json:"name"`
-	DisplayName      string            `json:"displayName"`
-	CredentialFields []CredentialField `json:"credentialFields,omitempty"`
-	CredentialValues map[string]string `json:"credentialValues,omitempty"`
-	Models           []Model           `json:"models"`
-	Resources        []Model           `json:"resources"`
-	IsConnected      bool              `json:"isConnected"`
-	IsActive         bool              `json:"isActive"`
-	Status           *Status           `json:"status,omitempty"`
+	Name             string                         `json:"name"`
+	DisplayName      string                         `json:"displayName"`
+	CredentialFields []providercore.CredentialField `json:"credentialFields,omitempty"`
+	CredentialValues map[string]string              `json:"credentialValues,omitempty"`
+	Models           []providercore.Model           `json:"models"`
+	Resources        []providercore.Model           `json:"resources"`
+	IsConnected      bool                           `json:"isConnected"`
+	IsActive         bool                           `json:"isActive"`
+	Status           *Status                        `json:"status,omitempty"`
 }
 
 // Status represents the last known health check for a provider.
@@ -35,30 +36,30 @@ type Status struct {
 
 // resourceLister is implemented by providers that can list resources.
 type resourceLister interface {
-	ListResources(ctx context.Context) ([]Model, error)
+	ListResources(ctx context.Context) ([]providercore.Model, error)
 }
 
 var errNoResources = errors.New("no resources returned from provider")
 
 // Service handles provider management logic.
 type Service struct {
-	registry          Registry
-	resources         map[string][]Model
+	registry          providercore.ProviderRegistry
+	resources         map[string][]providercore.Model
 	resourceUpdatedAt map[string]int64
-	cache             Cache
+	cache             providercore.ProviderCache
 	enabledModelIDs   map[string][]string
 	updateFrequency   map[string]time.Duration
 	status            map[string]Status
 	refreshing        map[string]bool
 	mu                sync.RWMutex
-	inputsStore       InputsStore
-	secrets           SecretStore
-	logger            Logger
+	inputsStore       providercore.ProviderInputsStore
+	secrets           providercore.SecretStore
+	logger            corelogger.Logger
 	providerOpsMu     sync.Mutex
 }
 
 // validateProvider tests connectivity and updates resources when supported.
-func (s *Service) validateProvider(ctx context.Context, name string, p Provider) (bool, error) {
+func (s *Service) validateProvider(ctx context.Context, name string, p providercore.Provider) (bool, error) {
 
 	if lister, ok := p.(resourceLister); ok {
 		resources, err := lister.ListResources(ctx)
@@ -78,11 +79,11 @@ func (s *Service) validateProvider(ctx context.Context, name string, p Provider)
 }
 
 // NewService creates a new provider service.
-func NewService(registry Registry, cache Cache, secrets SecretStore, inputs InputsStore, updateFrequency map[string]time.Duration, logger Logger) *Service {
+func NewService(registry providercore.ProviderRegistry, cache providercore.ProviderCache, secrets providercore.SecretStore, inputs providercore.ProviderInputsStore, updateFrequency map[string]time.Duration, logger corelogger.Logger) *Service {
 
 	s := &Service{
 		registry:          registry,
-		resources:         make(map[string][]Model),
+		resources:         make(map[string][]providercore.Model),
 		resourceUpdatedAt: make(map[string]int64),
 		cache:             cache,
 		enabledModelIDs:   captureEnabledModelIDs(registry),
@@ -133,25 +134,25 @@ func (s *Service) applyEnabledModelsFromCache() {
 }
 
 // applyEnabledModels updates provider models using enabled IDs and available resources.
-func (s *Service) applyEnabledModels(name string, resources []Model) {
+func (s *Service) applyEnabledModels(name string, resources []providercore.Model) {
 
 	enabledIDs := s.enabledModelIDs[name]
 	if p := s.registry.Get(name); p != nil {
 		if len(resources) == 0 {
-			_ = p.Configure(Config{Models: buildFallbackModels(enabledIDs)})
+			_ = p.Configure(providercore.ProviderConfig{Models: buildFallbackModels(enabledIDs)})
 			return
 		}
 		if len(enabledIDs) == 0 {
-			_ = p.Configure(Config{Models: resources})
+			_ = p.Configure(providercore.ProviderConfig{Models: resources})
 			return
 		}
 		available := indexModelsByID(resources)
-		_ = p.Configure(Config{Models: selectModelsByID(enabledIDs, available)})
+		_ = p.Configure(providercore.ProviderConfig{Models: selectModelsByID(enabledIDs, available)})
 	}
 }
 
 // captureEnabledModelIDs extracts enabled model IDs from configured providers.
-func captureEnabledModelIDs(registry Registry) map[string][]string {
+func captureEnabledModelIDs(registry providercore.ProviderRegistry) map[string][]string {
 
 	result := make(map[string][]string)
 	if registry == nil {
@@ -164,7 +165,7 @@ func captureEnabledModelIDs(registry Registry) map[string][]string {
 }
 
 // extractModelIDs normalizes model IDs from configured models.
-func extractModelIDs(models []Model) []string {
+func extractModelIDs(models []providercore.Model) []string {
 
 	seen := make(map[string]struct{}, len(models))
 	ids := make([]string, 0, len(models))
@@ -183,7 +184,7 @@ func extractModelIDs(models []Model) []string {
 }
 
 // providerCredentialFields returns the credential schema for a provider.
-func (s *Service) providerCredentialFields(p Provider) []CredentialField {
+func (s *Service) providerCredentialFields(p providercore.Provider) []providercore.CredentialField {
 
 	if p == nil {
 		return nil
@@ -192,27 +193,27 @@ func (s *Service) providerCredentialFields(p Provider) []CredentialField {
 }
 
 // loadProviderInputs returns stored non-secret inputs for a provider.
-func (s *Service) loadProviderInputs(name string) ProviderCredentials {
+func (s *Service) loadProviderInputs(name string) providercore.ProviderCredentials {
 
 	if s.inputsStore == nil {
 		return nil
 	}
 	inputs, err := s.inputsStore.LoadProviderInputs(name)
 	if err != nil {
-		s.logWarn("Failed to load provider inputs", err, LogField{Key: "provider", Value: name})
+		s.logWarn("Failed to load provider inputs", err, corelogger.LogField{Key: "provider", Value: name})
 		return nil
 	}
 	return inputs
 }
 
 // loadProviderSecrets returns stored secret values for a provider.
-func (s *Service) loadProviderSecrets(name string, fields []CredentialField) ProviderCredentials {
+func (s *Service) loadProviderSecrets(name string, fields []providercore.CredentialField) providercore.ProviderCredentials {
 
 	if s.secrets == nil {
 		return nil
 	}
 
-	credentials := make(ProviderCredentials)
+	credentials := make(providercore.ProviderCredentials)
 	for _, field := range fields {
 		if !field.Secret {
 			continue
@@ -231,13 +232,13 @@ func (s *Service) loadProviderSecrets(name string, fields []CredentialField) Pro
 }
 
 // mergeCredentialValues combines stored and incoming credential values.
-func mergeCredentialValues(base, override ProviderCredentials) ProviderCredentials {
+func mergeCredentialValues(base, override providercore.ProviderCredentials) providercore.ProviderCredentials {
 
 	if len(base) == 0 && len(override) == 0 {
 		return nil
 	}
 
-	merged := make(ProviderCredentials)
+	merged := make(providercore.ProviderCredentials)
 	for key, value := range base {
 		trimmed := strings.TrimSpace(value)
 		if trimmed == "" {
@@ -260,7 +261,7 @@ func mergeCredentialValues(base, override ProviderCredentials) ProviderCredentia
 }
 
 // validateRequiredCredentials verifies all required fields are present.
-func validateRequiredCredentials(fields []CredentialField, credentials ProviderCredentials) error {
+func validateRequiredCredentials(fields []providercore.CredentialField, credentials providercore.ProviderCredentials) error {
 
 	for _, field := range fields {
 		if !field.Required {
@@ -278,13 +279,13 @@ func validateRequiredCredentials(fields []CredentialField, credentials ProviderC
 }
 
 // filterCredentialValues returns credential values matching the secret flag.
-func filterCredentialValues(fields []CredentialField, credentials ProviderCredentials, secret bool) ProviderCredentials {
+func filterCredentialValues(fields []providercore.CredentialField, credentials providercore.ProviderCredentials, secret bool) providercore.ProviderCredentials {
 
 	if len(credentials) == 0 {
 		return nil
 	}
 
-	filtered := make(ProviderCredentials)
+	filtered := make(providercore.ProviderCredentials)
 	for _, field := range fields {
 		if field.Secret != secret {
 			continue
@@ -303,7 +304,7 @@ func filterCredentialValues(fields []CredentialField, credentials ProviderCreden
 }
 
 // resolveCredentials merges stored and incoming credentials with validation.
-func (s *Service) resolveCredentials(name string, fields []CredentialField, input ProviderCredentials) (ProviderCredentials, error) {
+func (s *Service) resolveCredentials(name string, fields []providercore.CredentialField, input providercore.ProviderCredentials) (providercore.ProviderCredentials, error) {
 
 	stored := mergeCredentialValues(s.loadProviderInputs(name), s.loadProviderSecrets(name, fields))
 	merged := mergeCredentialValues(stored, input)
@@ -314,14 +315,14 @@ func (s *Service) resolveCredentials(name string, fields []CredentialField, inpu
 }
 
 // persistCredentials saves provided credential values to storage.
-func (s *Service) persistCredentials(name string, fields []CredentialField, input ProviderCredentials) error {
+func (s *Service) persistCredentials(name string, fields []providercore.CredentialField, input providercore.ProviderCredentials) error {
 
 	if len(input) == 0 {
 		return nil
 	}
 
-	var secretUpdates ProviderCredentials
-	var inputUpdates ProviderCredentials
+	var secretUpdates providercore.ProviderCredentials
+	var inputUpdates providercore.ProviderCredentials
 
 	for _, field := range fields {
 		value, ok := input[field.Name]
@@ -334,7 +335,7 @@ func (s *Service) persistCredentials(name string, fields []CredentialField, inpu
 		}
 		if field.Secret {
 			if secretUpdates == nil {
-				secretUpdates = make(ProviderCredentials)
+				secretUpdates = make(providercore.ProviderCredentials)
 			}
 			secretUpdates[field.Name] = trimmed
 		} else {
@@ -342,7 +343,7 @@ func (s *Service) persistCredentials(name string, fields []CredentialField, inpu
 				return fmt.Errorf("credential field %q must be stored as secret", field.Name)
 			}
 			if inputUpdates == nil {
-				inputUpdates = make(ProviderCredentials)
+				inputUpdates = make(providercore.ProviderCredentials)
 			}
 			inputUpdates[field.Name] = trimmed
 		}
@@ -373,7 +374,7 @@ func (s *Service) persistCredentials(name string, fields []CredentialField, inpu
 }
 
 // clearStoredCredentials removes stored inputs and secrets for a provider.
-func (s *Service) clearStoredCredentials(name string, fields []CredentialField) error {
+func (s *Service) clearStoredCredentials(name string, fields []providercore.CredentialField) error {
 
 	if s.inputsStore != nil {
 		if err := s.inputsStore.SaveProviderInputs(name, nil); err != nil {
@@ -393,7 +394,7 @@ func (s *Service) clearStoredCredentials(name string, fields []CredentialField) 
 }
 
 // isProviderConfigured returns true when required credential fields are present.
-func (s *Service) isProviderConfigured(name string, fields []CredentialField) bool {
+func (s *Service) isProviderConfigured(name string, fields []providercore.CredentialField) bool {
 
 	credentials := mergeCredentialValues(s.loadProviderInputs(name), s.loadProviderSecrets(name, fields))
 	return validateRequiredCredentials(fields, credentials) == nil
@@ -420,7 +421,7 @@ func (s *Service) refreshResourcesIfStale(name string) {
 		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 		defer cancel()
 		if err := s.RefreshResources(ctx, name); err != nil {
-			s.logWarn("Failed to refresh stale resources", err, LogField{Key: "provider", Value: name})
+			s.logWarn("Failed to refresh stale resources", err, corelogger.LogField{Key: "provider", Value: name})
 		}
 	}()
 }
@@ -495,7 +496,7 @@ func (s *Service) ensureProviderConfiguredLocked(name string) error {
 	if len(resolved) == 0 {
 		return nil
 	}
-	if err := p.Configure(Config{Credentials: resolved}); err != nil {
+	if err := p.Configure(providercore.ProviderConfig{Credentials: resolved}); err != nil {
 		return err
 	}
 	return nil
@@ -542,17 +543,17 @@ func (s *Service) List() []Info {
 }
 
 // Connect configures, validates, and persists a provider connection.
-func (s *Service) Connect(ctx context.Context, name string, credentials ProviderCredentials) (Info, error) {
+func (s *Service) Connect(ctx context.Context, name string, credentials providercore.ProviderCredentials) (Info, error) {
 
 	s.providerOpsMu.Lock()
 	defer s.providerOpsMu.Unlock()
 
-	s.logInfo("Connecting provider", LogField{Key: "provider", Value: name})
+	s.logInfo("Connecting provider", corelogger.LogField{Key: "provider", Value: name})
 	p := s.registry.Get(name)
 	if p == nil {
 		err := fmt.Errorf("provider not found: %s", name)
 		s.SetStatus(name, false, err.Error())
-		s.logWarn("Provider not found during connect", err, LogField{Key: "provider", Value: name})
+		s.logWarn("Provider not found during connect", err, corelogger.LogField{Key: "provider", Value: name})
 		return Info{}, err
 	}
 
@@ -560,13 +561,13 @@ func (s *Service) Connect(ctx context.Context, name string, credentials Provider
 	resolved, err := s.resolveCredentials(name, fields, credentials)
 	if err != nil {
 		s.SetStatus(name, false, err.Error())
-		s.logWarn("Missing required credentials", err, LogField{Key: "provider", Value: name})
+		s.logWarn("Missing required credentials", err, corelogger.LogField{Key: "provider", Value: name})
 		return Info{}, err
 	}
 
-	if err := p.Configure(Config{Credentials: resolved}); err != nil {
+	if err := p.Configure(providercore.ProviderConfig{Credentials: resolved}); err != nil {
 		s.SetStatus(name, false, err.Error())
-		s.logError("Failed to configure provider", err, LogField{Key: "provider", Value: name})
+		s.logError("Failed to configure provider", err, corelogger.LogField{Key: "provider", Value: name})
 		return Info{}, err
 	}
 
@@ -582,24 +583,24 @@ func (s *Service) Connect(ctx context.Context, name string, credentials Provider
 		s.SetStatus(name, false, err.Error())
 		if usedLister {
 			if errors.Is(err, errNoResources) {
-				s.logWarn("No resources returned", err, LogField{Key: "provider", Value: name})
+				s.logWarn("No resources returned", err, corelogger.LogField{Key: "provider", Value: name})
 			} else {
-				s.logError("Failed to list resources", err, LogField{Key: "provider", Value: name})
+				s.logError("Failed to list resources", err, corelogger.LogField{Key: "provider", Value: name})
 			}
 		} else {
-			s.logError("Connection test failed", err, LogField{Key: "provider", Value: name})
+			s.logError("Connection test failed", err, corelogger.LogField{Key: "provider", Value: name})
 		}
 		return Info{}, err
 	}
 
 	if err := s.persistCredentials(name, fields, credentials); err != nil {
 		s.SetStatus(name, false, err.Error())
-		s.logError("Failed to save credentials", err, LogField{Key: "provider", Value: name})
+		s.logError("Failed to save credentials", err, corelogger.LogField{Key: "provider", Value: name})
 		return Info{}, err
 	}
 
 	s.registry.SetActive(name)
-	s.logInfo("Provider connected successfully", LogField{Key: "provider", Value: name})
+	s.logInfo("Provider connected successfully", corelogger.LogField{Key: "provider", Value: name})
 
 	active := s.registry.GetActive()
 	s.SetStatus(name, true, "")
@@ -623,21 +624,21 @@ func (s *Service) Disconnect(name string) error {
 	s.providerOpsMu.Lock()
 	defer s.providerOpsMu.Unlock()
 
-	s.logInfo("Disconnecting provider", LogField{Key: "provider", Value: name})
+	s.logInfo("Disconnecting provider", corelogger.LogField{Key: "provider", Value: name})
 	fields := s.providerCredentialFields(s.registry.Get(name))
 	if err := s.clearStoredCredentials(name, fields); err != nil {
-		s.logError("Failed to remove credentials", err, LogField{Key: "provider", Value: name})
+		s.logError("Failed to remove credentials", err, corelogger.LogField{Key: "provider", Value: name})
 		return fmt.Errorf("failed to remove credentials: %w", err)
 	}
 
 	// 2. Clear from registry/memory
 	p := s.registry.Get(name)
 	if p != nil {
-		clear := make(ProviderCredentials)
+		clear := make(providercore.ProviderCredentials)
 		for _, field := range fields {
 			clear[field.Name] = ""
 		}
-		_ = p.Configure(Config{Credentials: clear})
+		_ = p.Configure(providercore.ProviderConfig{Credentials: clear})
 	}
 
 	// 3. Clear cached resources
@@ -701,36 +702,36 @@ func (s *Service) selectNextActiveProvider(disconnected string) string {
 }
 
 // Configure updates and persists provider credentials while refreshing status.
-func (s *Service) Configure(name string, credentials ProviderCredentials) error {
+func (s *Service) Configure(name string, credentials providercore.ProviderCredentials) error {
 
 	s.providerOpsMu.Lock()
 	defer s.providerOpsMu.Unlock()
 
-	s.logInfo("Configuring provider", LogField{Key: "provider", Value: name})
+	s.logInfo("Configuring provider", corelogger.LogField{Key: "provider", Value: name})
 	p := s.registry.Get(name)
 	if p == nil {
 		err := fmt.Errorf("provider not found: %s", name)
 		s.SetStatus(name, false, err.Error())
-		s.logWarn("Provider not found during configure", err, LogField{Key: "provider", Value: name})
+		s.logWarn("Provider not found during configure", err, corelogger.LogField{Key: "provider", Value: name})
 		return err
 	}
 	trimmedInput := mergeCredentialValues(nil, credentials)
 	if len(trimmedInput) == 0 {
 		err := fmt.Errorf("credentials required for provider: %s", name)
 		s.SetStatus(name, false, err.Error())
-		s.logWarn("Empty credentials during configure", err, LogField{Key: "provider", Value: name})
+		s.logWarn("Empty credentials during configure", err, corelogger.LogField{Key: "provider", Value: name})
 		return err
 	}
 	fields := s.providerCredentialFields(p)
 	resolved, err := s.resolveCredentials(name, fields, credentials)
 	if err != nil {
 		s.SetStatus(name, false, err.Error())
-		s.logWarn("Missing required credentials", err, LogField{Key: "provider", Value: name})
+		s.logWarn("Missing required credentials", err, corelogger.LogField{Key: "provider", Value: name})
 		return err
 	}
-	if err := p.Configure(Config{Credentials: resolved}); err != nil {
+	if err := p.Configure(providercore.ProviderConfig{Credentials: resolved}); err != nil {
 		s.SetStatus(name, false, err.Error())
-		s.logError("Failed to configure provider", err, LogField{Key: "provider", Value: name})
+		s.logError("Failed to configure provider", err, corelogger.LogField{Key: "provider", Value: name})
 		return err
 	}
 
@@ -742,19 +743,19 @@ func (s *Service) Configure(name string, credentials ProviderCredentials) error 
 		s.SetStatus(name, false, err.Error())
 		if usedLister {
 			if errors.Is(err, errNoResources) {
-				s.logWarn("No resources returned", err, LogField{Key: "provider", Value: name})
+				s.logWarn("No resources returned", err, corelogger.LogField{Key: "provider", Value: name})
 			} else {
-				s.logError("Failed to list resources", err, LogField{Key: "provider", Value: name})
+				s.logError("Failed to list resources", err, corelogger.LogField{Key: "provider", Value: name})
 			}
 		} else {
-			s.logError("Connection test failed", err, LogField{Key: "provider", Value: name})
+			s.logError("Connection test failed", err, corelogger.LogField{Key: "provider", Value: name})
 		}
 		return err
 	}
 
 	if err := s.persistCredentials(name, fields, credentials); err != nil {
 		s.SetStatus(name, false, err.Error())
-		s.logError("Failed to save credentials", err, LogField{Key: "provider", Value: name})
+		s.logError("Failed to save credentials", err, corelogger.LogField{Key: "provider", Value: name})
 		return err
 	}
 
@@ -768,7 +769,7 @@ func (s *Service) SetActive(name string) bool {
 	s.providerOpsMu.Lock()
 	defer s.providerOpsMu.Unlock()
 
-	s.logInfo("Setting active provider", LogField{Key: "provider", Value: name})
+	s.logInfo("Setting active provider", corelogger.LogField{Key: "provider", Value: name})
 	return s.registry.SetActive(name)
 }
 
@@ -795,7 +796,7 @@ func (s *Service) testConnectionLocked(ctx context.Context, name string) error {
 		s.SetStatus(name, false, err.Error())
 		return err
 	}
-	if err := p.Configure(Config{Credentials: resolved}); err != nil {
+	if err := p.Configure(providercore.ProviderConfig{Credentials: resolved}); err != nil {
 		s.SetStatus(name, false, err.Error())
 		return err
 	}
@@ -806,7 +807,7 @@ func (s *Service) testConnectionLocked(ctx context.Context, name string) error {
 	defer cancel()
 	if err := p.TestConnection(ctx); err != nil {
 		s.SetStatus(name, false, err.Error())
-		s.logWarn("Test connection failed", err, LogField{Key: "provider", Value: name})
+		s.logWarn("Test connection failed", err, corelogger.LogField{Key: "provider", Value: name})
 		return err
 	}
 	s.SetStatus(name, true, "")
@@ -819,7 +820,7 @@ func (s *Service) RefreshResources(ctx context.Context, name string) error {
 	s.providerOpsMu.Lock()
 	defer s.providerOpsMu.Unlock()
 
-	s.logDebug("Refreshing resources", LogField{Key: "provider", Value: name})
+	s.logDebug("Refreshing resources", corelogger.LogField{Key: "provider", Value: name})
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -841,7 +842,7 @@ func (s *Service) RefreshResources(ctx context.Context, name string) error {
 		s.SetStatus(name, false, err.Error())
 		return err
 	}
-	if err := p.Configure(Config{Credentials: resolved}); err != nil {
+	if err := p.Configure(providercore.ProviderConfig{Credentials: resolved}); err != nil {
 		s.SetStatus(name, false, err.Error())
 		return err
 	}
@@ -849,7 +850,7 @@ func (s *Service) RefreshResources(ctx context.Context, name string) error {
 		resources, err := lister.ListResources(ctx)
 		if err != nil {
 			s.SetStatus(name, false, err.Error())
-			s.logError("Failed to refresh resources", err, LogField{Key: "provider", Value: name})
+			s.logError("Failed to refresh resources", err, corelogger.LogField{Key: "provider", Value: name})
 			return err
 		}
 		if len(resources) == 0 {
@@ -868,7 +869,7 @@ func (s *Service) RefreshResources(ctx context.Context, name string) error {
 }
 
 // GetResources returns a copy of cached resources for a provider.
-func (s *Service) GetResources(name string) []Model {
+func (s *Service) GetResources(name string) []providercore.Model {
 
 	s.mu.RLock()
 	resources := s.resources[name]
@@ -878,13 +879,13 @@ func (s *Service) GetResources(name string) []Model {
 		return nil
 	}
 
-	cloned := make([]Model, len(resources))
+	cloned := make([]providercore.Model, len(resources))
 	copy(cloned, resources)
 	return cloned
 }
 
 // SetResources updates cached resources for a provider.
-func (s *Service) SetResources(name string, resources []Model) {
+func (s *Service) SetResources(name string, resources []providercore.Model) {
 
 	s.mu.Lock()
 	if resources == nil {
@@ -904,11 +905,11 @@ func (s *Service) SetResources(name string, resources []Model) {
 }
 
 // buildCacheSnapshotLocked generates the cache snapshot from locked state.
-func (s *Service) buildCacheSnapshotLocked() CacheSnapshot {
+func (s *Service) buildCacheSnapshotLocked() providercore.ProviderCacheSnapshot {
 
-	snapshot := make(CacheSnapshot, len(s.resources))
+	snapshot := make(providercore.ProviderCacheSnapshot, len(s.resources))
 	for name, resources := range s.resources {
-		snapshot[name] = CacheEntry{
+		snapshot[name] = providercore.ProviderCacheEntry{
 			UpdatedAt: s.resourceUpdatedAt[name],
 			Models:    resources,
 		}
@@ -917,9 +918,9 @@ func (s *Service) buildCacheSnapshotLocked() CacheSnapshot {
 }
 
 // indexModelsByID builds a lookup map for models.
-func indexModelsByID(models []Model) map[string]Model {
+func indexModelsByID(models []providercore.Model) map[string]providercore.Model {
 
-	index := make(map[string]Model, len(models))
+	index := make(map[string]providercore.Model, len(models))
 	for _, model := range models {
 		if model.ID == "" {
 			continue
@@ -930,9 +931,9 @@ func indexModelsByID(models []Model) map[string]Model {
 }
 
 // selectModelsByID returns models in the order of provided IDs.
-func selectModelsByID(ids []string, available map[string]Model) []Model {
+func selectModelsByID(ids []string, available map[string]providercore.Model) []providercore.Model {
 
-	selected := make([]Model, 0, len(ids))
+	selected := make([]providercore.Model, 0, len(ids))
 	for _, id := range ids {
 		if model, ok := available[id]; ok {
 			selected = append(selected, model)
@@ -942,11 +943,11 @@ func selectModelsByID(ids []string, available map[string]Model) []Model {
 }
 
 // buildFallbackModels constructs model structs from IDs.
-func buildFallbackModels(ids []string) []Model {
+func buildFallbackModels(ids []string) []providercore.Model {
 
-	models := make([]Model, 0, len(ids))
+	models := make([]providercore.Model, 0, len(ids))
 	for _, id := range ids {
-		models = append(models, Model{
+		models = append(models, providercore.Model{
 			ID:   id,
 			Name: id,
 		})
@@ -1010,7 +1011,7 @@ func (s *Service) ClearStatus(name string) {
 }
 
 // GetActiveProvider returns the currently active provider.
-func (s *Service) GetActiveProvider() Provider {
+func (s *Service) GetActiveProvider() providercore.Provider {
 
 	if s.registry == nil {
 		return nil
@@ -1019,7 +1020,7 @@ func (s *Service) GetActiveProvider() Provider {
 }
 
 // GetProvider returns a provider by name.
-func (s *Service) GetProvider(name string) Provider {
+func (s *Service) GetProvider(name string) providercore.Provider {
 
 	if s.registry == nil {
 		return nil
@@ -1027,7 +1028,7 @@ func (s *Service) GetProvider(name string) Provider {
 	return s.registry.Get(name)
 }
 
-func (s *Service) logDebug(message string, fields ...LogField) {
+func (s *Service) logDebug(message string, fields ...corelogger.LogField) {
 
 	if s.logger == nil {
 		return
@@ -1035,7 +1036,7 @@ func (s *Service) logDebug(message string, fields ...LogField) {
 	s.logger.Debug(message, fields...)
 }
 
-func (s *Service) logInfo(message string, fields ...LogField) {
+func (s *Service) logInfo(message string, fields ...corelogger.LogField) {
 
 	if s.logger == nil {
 		return
@@ -1043,7 +1044,7 @@ func (s *Service) logInfo(message string, fields ...LogField) {
 	s.logger.Info(message, fields...)
 }
 
-func (s *Service) logWarn(message string, err error, fields ...LogField) {
+func (s *Service) logWarn(message string, err error, fields ...corelogger.LogField) {
 
 	if s.logger == nil {
 		return
@@ -1051,7 +1052,7 @@ func (s *Service) logWarn(message string, err error, fields ...LogField) {
 	s.logger.Warn(message, err, fields...)
 }
 
-func (s *Service) logError(message string, err error, fields ...LogField) {
+func (s *Service) logError(message string, err error, fields ...corelogger.LogField) {
 
 	if s.logger == nil {
 		return

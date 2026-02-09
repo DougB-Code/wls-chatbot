@@ -5,7 +5,6 @@ package events
 import (
 	"fmt"
 	"reflect"
-	"sort"
 	"strings"
 	"sync"
 )
@@ -16,12 +15,6 @@ type Name string
 // Signal is a strongly typed event signal identifier.
 type Signal[T any] struct {
 	name Name
-}
-
-// Name returns the wire signal name.
-func (s Signal[T]) Name() Name {
-
-	return s.name
 }
 
 // EmptyPayload is used for signals that intentionally carry no payload.
@@ -95,31 +88,6 @@ func (r *Registry) register(name Name, payloadType reflect.Type) (Name, error) {
 	return normalized, nil
 }
 
-// RegisteredNames returns registered signal names in deterministic order.
-func (r *Registry) RegisteredNames() []Name {
-
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	names := make([]Name, 0, len(r.types))
-	for name := range r.types {
-		names = append(names, name)
-	}
-	sort.Slice(names, func(i, j int) bool {
-		return names[i] < names[j]
-	})
-	return names
-}
-
-// PayloadType returns the registered payload type for a signal name.
-func (r *Registry) PayloadType(name Name) (reflect.Type, bool) {
-
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	payloadType, ok := r.types[name]
-	return payloadType, ok
-}
-
 // RegisterIn adds a typed signal to a specific registry.
 func RegisterIn[T any](registry *Registry, name Name) (Signal[T], error) {
 
@@ -144,28 +112,10 @@ func MustRegisterIn[T any](registry *Registry, name Name) Signal[T] {
 	return signal
 }
 
-// Register adds a typed signal to the default registry.
-func Register[T any](name Name) (Signal[T], error) {
-
-	return RegisterIn[T](defaultRegistry, name)
-}
-
 // MustRegister adds a typed signal to the default registry and panics on failure.
 func MustRegister[T any](name Name) Signal[T] {
 
 	return MustRegisterIn[T](defaultRegistry, name)
-}
-
-// RegisteredNames returns default-registry signal names in deterministic order.
-func RegisteredNames() []Name {
-
-	return defaultRegistry.RegisteredNames()
-}
-
-// PayloadType returns a default-registry payload type for a signal name.
-func PayloadType(name Name) (reflect.Type, bool) {
-
-	return defaultRegistry.PayloadType(name)
 }
 
 func normalizeName(name Name) (Name, error) {
