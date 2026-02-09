@@ -1,5 +1,5 @@
 // service.go manages chat conversation lifecycle and message state mutations.
-// internal/features/chat/app/chat/service.go
+// internal/features/ai/chat/app/chat/service.go
 package chat
 
 import (

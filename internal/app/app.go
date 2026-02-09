@@ -8,8 +8,8 @@ import (
 	chatfeature "github.com/MadeByDoug/wls-chatbot/internal/features/ai/chat/app/chat"
 	chatports "github.com/MadeByDoug/wls-chatbot/internal/features/ai/chat/ports"
 	imageports "github.com/MadeByDoug/wls-chatbot/internal/features/ai/image/ports"
-	modelinterfaces "github.com/MadeByDoug/wls-chatbot/internal/features/ai/model/interfaces"
-	providerfeature "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/provider"
+	modelinterfaces "github.com/MadeByDoug/wls-chatbot/internal/features/ai/model/ports"
+	providerfeature "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/app/provider"
 )
 
 // ProviderManagement exposes provider management capabilities to transports.

@@ -28,6 +28,7 @@ func NewCommand(deps Dependencies) *cobra.Command {
 	cmd.AddCommand(newModelCommand(deps))
 	cmd.AddCommand(newImageCommand(deps))
 	cmd.AddCommand(newChatCommand(deps))
+	cmd.AddCommand(newConversationCommand(deps))
 
 	return cmd
 }

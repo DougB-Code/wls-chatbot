@@ -1,5 +1,5 @@
 // provider.go implements the Anthropic provider adapter.
-// internal/features/providers/adapters/anthropic/provider.go
+// internal/features/ai/providers/adapters/anthropic/provider.go
 package anthropic
 
 import (
@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	providerhttp "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/adapters/httpcompat"
-	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/interfaces/core"
-	providergateway "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/interfaces/gateway"
+	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/core"
+	providergateway "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/gateway"
 	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 )

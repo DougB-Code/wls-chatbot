@@ -1,5 +1,5 @@
 // provider.go implements the Gemini provider adapter.
-// internal/features/providers/adapters/gemini/provider.go
+// internal/features/ai/providers/adapters/gemini/provider.go
 package gemini
 
 import (
@@ -12,8 +12,8 @@ import (
 	"strings"
 
 	providerhttp "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/adapters/httpcompat"
-	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/interfaces/core"
-	providergateway "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/interfaces/gateway"
+	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/core"
+	providergateway "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/gateway"
 	"google.golang.org/genai"
 )
 
@@ -435,4 +435,3 @@ func (g *Gemini) EditImage(ctx context.Context, opts providergateway.ImageEditOp
 	// We will attempt to use the genai client if possible, but standard 'GenerateImages' is text-to-image.
 	return nil, fmt.Errorf("image editing is not currently supported by the genai library for Imagen 4 models")
 }
-

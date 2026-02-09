@@ -1,5 +1,5 @@
 // types.go re-exports chat domain and port contracts into the app boundary.
-// internal/features/chat/app/chat/types.go
+// internal/features/ai/chat/app/chat/types.go
 package chat
 
 import (

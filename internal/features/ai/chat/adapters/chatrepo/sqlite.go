@@ -1,5 +1,5 @@
 // sqlite.go persists chat conversations with a normalized SQLite schema.
-// internal/features/chat/adapters/chatrepo/sqlite.go
+// internal/features/ai/chat/adapters/chatrepo/sqlite.go
 package chatrepo
 
 import (

@@ -1,11 +1,11 @@
 // inmemory.go provides in-memory provider registry storage.
-// internal/features/providers/adapters/registry/inmemory.go
+// internal/features/ai/providers/adapters/registry/inmemory.go
 package registry
 
 import (
 	"sync"
 
-	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/interfaces/core"
+	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/core"
 )
 
 // Registry manages available providers.

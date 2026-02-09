@@ -42,7 +42,7 @@ func main() {
 		Short:        "Wails Lit Starter ChatBot",
 		SilenceUsage: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-			if cmd.Name() == AppName || cmd.Name() == "help" {
+			if cmd.Name() == "help" {
 				return nil
 			}
 			resolvedLevel := strings.TrimSpace(logLevel)
@@ -59,6 +59,12 @@ func main() {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			for _, child := range cmd.Commands() {
+				if child.Name() != "ui" || child.RunE == nil {
+					continue
+				}
+				return child.RunE(child, []string{})
+			}
 			return cmd.Help()
 		},
 	}

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	providerfeature "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/provider"
+	providerfeature "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/app/provider"
 	"github.com/spf13/cobra"
 )
 
@@ -23,6 +23,9 @@ func newProviderCommand(deps Dependencies) *cobra.Command {
 	cmd.AddCommand(newProviderAddCommand(deps))
 	cmd.AddCommand(newProviderRemoveCommand(deps))
 	cmd.AddCommand(newProviderCredentialsCommand(deps))
+	cmd.AddCommand(newProviderActiveCommand(deps))
+	cmd.AddCommand(newProviderSetActiveCommand(deps))
+	cmd.AddCommand(newProviderRefreshCommand(deps))
 	return cmd
 }
 
@@ -194,6 +197,91 @@ func newProviderCredentialsCommand(deps Dependencies) *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "Provider name")
 	_ = cmd.MarkFlagRequired("name")
 	cmd.Flags().StringArrayVar(&credentials, "credential", nil, "Provider credential as key=value (repeat flag)")
+	return cmd
+}
+
+// newProviderActiveCommand shows the active provider.
+func newProviderActiveCommand(deps Dependencies) *cobra.Command {
+
+	cmd := &cobra.Command{
+		Use:   "active",
+		Short: "Show the active provider",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			applicationFacade, err := loadApp(deps)
+			if err != nil {
+				return err
+			}
+
+			info := applicationFacade.Providers.GetActiveProvider()
+			if info == nil {
+				fmt.Println("No active provider set.")
+				return nil
+			}
+
+			fmt.Printf("Active provider: %s (%s)\n", info.Name, info.DisplayName)
+			return nil
+		},
+	}
+	return cmd
+}
+
+// newProviderSetActiveCommand sets the active provider.
+func newProviderSetActiveCommand(deps Dependencies) *cobra.Command {
+
+	var name string
+
+	cmd := &cobra.Command{
+		Use:   "set-active",
+		Short: "Set the active provider",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			applicationFacade, err := loadApp(deps)
+			if err != nil {
+				return err
+			}
+
+			if !applicationFacade.Providers.SetActiveProvider(name) {
+				return fmt.Errorf("failed to set active provider: %s", name)
+			}
+
+			fmt.Printf("Active provider set to %s.\n", name)
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&name, "name", "", "Provider name")
+	_ = cmd.MarkFlagRequired("name")
+	return cmd
+}
+
+// newProviderRefreshCommand refreshes provider resources.
+func newProviderRefreshCommand(deps Dependencies) *cobra.Command {
+
+	var name string
+
+	cmd := &cobra.Command{
+		Use:   "refresh",
+		Short: "Refresh provider resources (models, etc.)",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			applicationFacade, err := loadApp(deps)
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("Refreshing resources for %s...\n", name)
+			if err := applicationFacade.Providers.RefreshProviderResources(cmd.Context(), name); err != nil {
+				return err
+			}
+
+			fmt.Println("Resources refreshed.")
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&name, "name", "", "Provider name")
+	_ = cmd.MarkFlagRequired("name")
 	return cmd
 }
 

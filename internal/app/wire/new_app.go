@@ -13,12 +13,15 @@ import (
 	corelogger "github.com/MadeByDoug/wls-chatbot/internal/core/logger"
 	"github.com/MadeByDoug/wls-chatbot/internal/features/ai/chat/adapters/chatrepo"
 	chatfeature "github.com/MadeByDoug/wls-chatbot/internal/features/ai/chat/app/chat"
-	imagefeature "github.com/MadeByDoug/wls-chatbot/internal/features/ai/image"
-	modelfeature "github.com/MadeByDoug/wls-chatbot/internal/features/ai/model"
+	imageresolver "github.com/MadeByDoug/wls-chatbot/internal/features/ai/image/adapters/imageresolver"
+	imagefeature "github.com/MadeByDoug/wls-chatbot/internal/features/ai/image/app/image"
+	modelio "github.com/MadeByDoug/wls-chatbot/internal/features/ai/model/adapters/io"
+	modelseeder "github.com/MadeByDoug/wls-chatbot/internal/features/ai/model/adapters/seeder"
+	modelfeature "github.com/MadeByDoug/wls-chatbot/internal/features/ai/model/app/model"
 	providersmodule "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers"
 	providercache "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/adapters/cache"
 	securestore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/adapters/secretstore"
-	providerfeature "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/provider"
+	providerfeature "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/app/provider"
 	"github.com/rs/zerolog"
 )
 
@@ -67,12 +70,19 @@ func NewApp(deps Dependencies) (*app.App, error) {
 		return nil, err
 	}
 	chatService := chatfeature.NewService(chatRepo)
+	chatCompletionService := chatfeature.NewChatService(registry, secrets)
 
 	providerOrchestrator := providerfeature.NewOrchestrator(providerService, secrets, deps.Events)
-	conversationOrchestrator := chatfeature.NewOrchestrator(chatService, registry, secrets, deps.Events)
-	modelService := modelfeature.NewModelService(nil, deps.DB, deps.AppName)
-	imageService := imagefeature.NewImageService(providerOrchestrator)
-	chatCompletionService := chatfeature.NewChatService()
+	conversationOrchestrator := chatfeature.NewOrchestrator(chatService, chatCompletionService, deps.Events)
+	modelService := modelfeature.NewModelService(
+		nil,
+		deps.DB,
+		deps.AppName,
+		modelio.NewLocalFileSystem(),
+		modelio.NewPlatformAppDataDirResolver(),
+		modelseeder.NewDatastoreSeeder(),
+	)
+	imageService := imagefeature.NewService(providerOrchestrator, imageresolver.NewHTTPResolver(nil))
 
 	return app.New(app.Dependencies{
 		Providers:     app.NewProviderManagement(providerOrchestrator),

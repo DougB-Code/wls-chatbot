@@ -1,5 +1,5 @@
 // sqlite.go persists provider resource cache snapshots in SQLite.
-// internal/features/providers/adapters/cache/sqlite.go
+// internal/features/ai/providers/adapters/cache/sqlite.go
 package cache
 
 import (
@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/interfaces/core"
+	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/core"
 )
 
 const providerCacheSchema = `

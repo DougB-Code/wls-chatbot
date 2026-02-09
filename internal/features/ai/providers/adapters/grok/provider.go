@@ -1,5 +1,5 @@
 // provider.go implements the Grok (xAI) provider adapter.
-// internal/features/providers/adapters/grok/provider.go
+// internal/features/ai/providers/adapters/grok/provider.go
 package grok
 
 import (
@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	providerhttp "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/adapters/httpcompat"
-	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/interfaces/core"
-	providergateway "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/interfaces/gateway"
+	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/core"
+	providergateway "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/gateway"
 	openaisdk "github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 )
@@ -114,7 +114,6 @@ func (g *Grok) SetHTTPClient(client HTTPClient) {
 		g.client = client
 	}
 }
-
 
 // TestConnection verifies the API is reachable.
 func (g *Grok) TestConnection(ctx context.Context) error {

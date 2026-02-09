@@ -1,5 +1,5 @@
 // provider.go implements the Cloudflare AI Gateway provider adapter.
-// internal/features/providers/adapters/cloudflare/provider.go
+// internal/features/ai/providers/adapters/cloudflare/provider.go
 package cloudflare
 
 import (
@@ -11,8 +11,8 @@ import (
 
 	coreports "github.com/MadeByDoug/wls-chatbot/internal/core/logger"
 	providerhttp "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/adapters/httpcompat"
-	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/interfaces/core"
-	providergateway "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/interfaces/gateway"
+	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/core"
+	providergateway "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/gateway"
 	"github.com/cloudflare/cloudflare-go"
 )
 
@@ -167,7 +167,6 @@ func (c *Cloudflare) SetLogger(logger Logger) {
 		c.logger = logger
 	}
 }
-
 
 // newSDKClient creates a new Cloudflare SDK client.
 func (c *Cloudflare) newSDKClient() (*cloudflare.API, error) {
@@ -357,7 +356,6 @@ func resolveModelName(model string) string {
 	// Let's assume input is raw ID.
 	return model
 }
-
 
 // GenerateImage generates an image. Cloudflare Workers AI supports this, but implementation is pending specific model support verification.
 func (c *Cloudflare) GenerateImage(ctx context.Context, opts providergateway.ImageGenerationOptions) (*providergateway.ImageResult, error) {

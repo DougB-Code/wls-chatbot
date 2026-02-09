@@ -1,5 +1,5 @@
 // stream_manager.go manages cancellation state for streaming chat responses.
-// internal/features/chat/app/chat/stream_manager.go
+// internal/features/ai/chat/app/chat/stream_manager.go
 package chat
 
 import (

@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	modelinterfaces "github.com/MadeByDoug/wls-chatbot/internal/features/ai/model/interfaces"
+	modelinterfaces "github.com/MadeByDoug/wls-chatbot/internal/features/ai/model/ports"
 )
 
 // NewModelCatalog adapts model service operations into app interfaces.

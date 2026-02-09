@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	providerfeature "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/provider"
+	providerfeature "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/app/provider"
 )
 
 // NewProviderManagement adapts provider orchestrator operations into app interfaces.

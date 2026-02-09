@@ -1,5 +1,5 @@
 // chat.go defines chat completion transport contracts.
-// internal/core/interfaces/ai/chat.go
+// internal/features/ai/chat/ports/chat.go
 package ports
 
 import "context"

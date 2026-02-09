@@ -1,5 +1,5 @@
 // client.go defines shared HTTP client helpers for provider adapters.
-// internal/features/providers/adapters/httpcompat/client.go
+// internal/features/ai/providers/adapters/httpcompat/client.go
 package providerhttp
 
 import (

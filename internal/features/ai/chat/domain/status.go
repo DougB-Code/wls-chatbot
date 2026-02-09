@@ -1,5 +1,5 @@
 // status.go normalizes status codes from errors.
-// internal/features/chat/domain/status.go
+// internal/features/ai/chat/domain/status.go
 package domain
 
 import "errors"

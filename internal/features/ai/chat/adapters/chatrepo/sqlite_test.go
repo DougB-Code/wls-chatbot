@@ -1,5 +1,5 @@
 // sqlite_test.go verifies chat repository persistence behavior.
-// internal/features/chat/adapters/chatrepo/sqlite_test.go
+// internal/features/ai/chat/adapters/chatrepo/sqlite_test.go
 package chatrepo
 
 import (

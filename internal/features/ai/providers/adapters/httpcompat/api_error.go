@@ -1,5 +1,5 @@
 // api_error.go defines HTTP API error types for HTTP-compatible provider adapters.
-// internal/features/providers/adapters/httpcompat/api_error.go
+// internal/features/ai/providers/adapters/httpcompat/api_error.go
 package providerhttp
 
 import "fmt"

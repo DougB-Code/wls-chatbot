@@ -1,6 +1,6 @@
 // image.go defines image generation and editing transport contracts.
-// internal/core/interfaces/ai/image.go
-package ai
+// internal/features/ai/image/ports/image.go
+package ports
 
 import (
 	"context"

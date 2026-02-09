@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	modelinterfaces "github.com/MadeByDoug/wls-chatbot/internal/features/ai/model/interfaces"
+	modelinterfaces "github.com/MadeByDoug/wls-chatbot/internal/features/ai/model/ports"
 	"github.com/spf13/cobra"
 )
 

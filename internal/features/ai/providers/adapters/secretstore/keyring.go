@@ -1,9 +1,9 @@
 // keyring.go accesses OS keyring storage for provider secrets.
-// internal/features/providers/adapters/secretstore/keyring.go
+// internal/features/ai/providers/adapters/secretstore/keyring.go
 package securestore
 
 import (
-	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/interfaces/core"
+	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/core"
 	"github.com/zalando/go-keyring"
 )
 

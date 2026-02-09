@@ -1,5 +1,5 @@
 // metadata.go defines metadata captured from provider responses.
-// internal/features/chat/domain/metadata.go
+// internal/features/ai/chat/domain/metadata.go
 package domain
 
 // MessageMetadata contains information about message generation.

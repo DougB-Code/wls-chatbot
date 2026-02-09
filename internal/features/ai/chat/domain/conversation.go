@@ -1,5 +1,5 @@
 // conversation.go defines chat conversation entities and behavior.
-// internal/features/chat/domain/conversation.go
+// internal/features/ai/chat/domain/conversation.go
 package domain
 
 import (

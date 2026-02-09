@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	imageports "github.com/MadeByDoug/wls-chatbot/internal/features/ai/image/ports"
-	modelinterfaces "github.com/MadeByDoug/wls-chatbot/internal/features/ai/model/interfaces"
+	modelinterfaces "github.com/MadeByDoug/wls-chatbot/internal/features/ai/model/ports"
 )
 
 // GenerateImage generates an image using the shared backend interface.

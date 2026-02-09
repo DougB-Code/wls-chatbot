@@ -1,5 +1,5 @@
 // chat_repository.go defines chat persistence ports.
-// internal/features/chat/ports/chat_repository.go
+// internal/features/ai/chat/ports/chat_repository.go
 package ports
 
 import chatdomain "github.com/MadeByDoug/wls-chatbot/internal/features/ai/chat/domain"

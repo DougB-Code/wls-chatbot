@@ -1,5 +1,5 @@
 // message.go defines chat message entities and content blocks.
-// internal/features/chat/domain/message.go
+// internal/features/ai/chat/domain/message.go
 package domain
 
 import (

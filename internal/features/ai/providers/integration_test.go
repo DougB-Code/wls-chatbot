@@ -1,5 +1,5 @@
 // integration_test.go implements integration tests for providers.
-// internal/features/providers/integration_test.go
+// internal/features/ai/providers/integration_test.go
 package providers
 
 import (
@@ -11,8 +11,8 @@ import (
 	"github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/adapters/gemini"
 	"github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/adapters/grok"
 	"github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/adapters/openai"
-	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/interfaces/core"
-	providergateway "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/interfaces/gateway"
+	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/core"
+	providergateway "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/gateway"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

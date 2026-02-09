@@ -1,5 +1,5 @@
-// orchestration.go orchestrates chat workflows, streaming, and event emission.
-// internal/features/chat/app/chat/orchestration.go
+// orchestration.go orchestrates conversation state, persistence, and streaming events.
+// internal/features/ai/chat/app/chat/orchestration.go
 package chat
 
 import (
@@ -10,28 +10,25 @@ import (
 	"time"
 
 	coreevents "github.com/MadeByDoug/wls-chatbot/internal/core/events"
-	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/interfaces/core"
-	providergateway "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/interfaces/gateway"
+	chatports "github.com/MadeByDoug/wls-chatbot/internal/features/ai/chat/ports"
 )
 
 // Orchestrator coordinates chat workflows and event emission.
 type Orchestrator struct {
-	service  *Service
-	registry providercore.ProviderRegistry
-	secrets  providercore.SecretStore
-	emitter  coreevents.Bus
-	stream   *streamManager
+	service *Service
+	chat    chatports.ChatInterface
+	emitter coreevents.Bus
+	stream  *streamManager
 }
 
 // NewOrchestrator creates a chat orchestrator with required dependencies.
-func NewOrchestrator(chatService *Service, registry providercore.ProviderRegistry, secrets providercore.SecretStore, emitter coreevents.Bus) *Orchestrator {
+func NewOrchestrator(chatService *Service, completionService chatports.ChatInterface, emitter coreevents.Bus) *Orchestrator {
 
 	return &Orchestrator{
-		service:  chatService,
-		registry: registry,
-		secrets:  secrets,
-		emitter:  emitter,
-		stream:   newStreamManager(),
+		service: chatService,
+		chat:    completionService,
+		emitter: emitter,
+		stream:  newStreamManager(),
 	}
 }
 
@@ -164,26 +161,29 @@ func (o *Orchestrator) SendMessage(ctx context.Context, conversationID, content 
 		Message:        streamMsg,
 	})
 
-	prov, err := o.ensureProviderConfigured(providerName)
-	if err != nil {
+	if o.chat == nil {
+		err := fmt.Errorf("chat service not configured")
 		o.emitStreamError(conversationID, streamMsg.ID, err)
 		metadata := o.buildMetadata(providerName, conv.Settings.Model, "error", nil, time.Now(), err)
 		_ = o.service.FinalizeMessage(conversationID, streamMsg.ID, metadata)
 		return userMsg, nil
 	}
 
-	chatMessages := o.buildProviderMessages(conv, streamMsg.ID)
-	opts := providergateway.ChatOptions{
-		Model:       conv.Settings.Model,
-		Temperature: conv.Settings.Temperature,
-		MaxTokens:   conv.Settings.MaxTokens,
-		Stream:      true,
+	chatRequest := chatports.ChatRequest{
+		ProviderName: providerName,
+		ModelName:    conv.Settings.Model,
+		Messages:     o.buildChatMessages(conv, streamMsg.ID),
+		Options: chatports.ChatOptions{
+			Temperature: conv.Settings.Temperature,
+			MaxTokens:   conv.Settings.MaxTokens,
+			Stream:      true,
+		},
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	o.stream.start(conversationID, streamMsg.ID, cancel)
 
-	chunks, err := prov.Chat(ctx, chatMessages, opts)
+	chunks, err := o.chat.Chat(ctx, chatRequest)
 	if err != nil {
 		o.stream.clear(conversationID, streamMsg.ID)
 		o.emitStreamError(conversationID, streamMsg.ID, err)
@@ -245,55 +245,17 @@ func (o *Orchestrator) emitStreamComplete(conversationID, messageID string, meta
 	})
 }
 
-// ensureProviderConfigured returns a configured provider or an error.
-func (o *Orchestrator) ensureProviderConfigured(name string) (providercore.Provider, error) {
-
-	if o.registry == nil {
-		return nil, fmt.Errorf("provider registry not configured")
-	}
-	prov := o.registry.Get(name)
-	if prov == nil {
-		return nil, fmt.Errorf("provider not found: %s", name)
-	}
-
-	fields := prov.CredentialFields()
-	credentials := make(providercore.ProviderCredentials)
-	for _, field := range fields {
-		if !field.Secret {
-			continue
-		}
-		if o.secrets == nil {
-			if field.Required {
-				return nil, fmt.Errorf("secret store not configured")
-			}
-			continue
-		}
-		value, err := o.secrets.GetProviderSecret(name, field.Name)
-		if err != nil || strings.TrimSpace(value) == "" {
-			if field.Required {
-				return nil, fmt.Errorf("missing required credential: %s", field.Name)
-			}
-			continue
-		}
-		credentials[field.Name] = value
-	}
-	if len(credentials) > 0 {
-		_ = prov.Configure(providercore.ProviderConfig{Credentials: credentials})
-	}
-	return prov, nil
-}
-
-// buildProviderMessages builds the provider-facing message list.
-func (o *Orchestrator) buildProviderMessages(conv *Conversation, streamingMessageID string) []providergateway.ProviderMessage {
+// buildChatMessages builds the chat request message list.
+func (o *Orchestrator) buildChatMessages(conv *Conversation, streamingMessageID string) []chatports.ChatMessage {
 
 	conv.Lock()
 	defer conv.Unlock()
 
-	messages := make([]providergateway.ProviderMessage, 0, len(conv.Messages)+1)
+	messages := make([]chatports.ChatMessage, 0, len(conv.Messages)+1)
 	systemPrompt := strings.TrimSpace(conv.Settings.SystemPrompt)
 	if systemPrompt != "" {
-		messages = append(messages, providergateway.ProviderMessage{
-			Role:    providergateway.RoleSystem,
+		messages = append(messages, chatports.ChatMessage{
+			Role:    chatports.ChatRoleSystem,
 			Content: systemPrompt,
 		})
 	}
@@ -306,8 +268,8 @@ func (o *Orchestrator) buildProviderMessages(conv *Conversation, streamingMessag
 		if strings.TrimSpace(content) == "" {
 			continue
 		}
-		messages = append(messages, providergateway.ProviderMessage{
-			Role:    providergateway.Role(msg.Role),
+		messages = append(messages, chatports.ChatMessage{
+			Role:    chatports.ChatRole(msg.Role),
 			Content: content,
 		})
 	}
@@ -330,27 +292,28 @@ func textFromBlocks(blocks []Block) string {
 	return builder.String()
 }
 
-// consumeStream handles incoming provider chunks and emits events.
-func (o *Orchestrator) consumeStream(conversationID, messageID, providerName, fallbackModel string, chunks <-chan providergateway.Chunk) {
+// consumeStream handles incoming chat chunks and emits events.
+func (o *Orchestrator) consumeStream(conversationID, messageID, providerName, fallbackModel string, chunks <-chan chatports.ChatChunk) {
 
 	defer o.stream.clear(conversationID, messageID)
 
 	start := time.Now()
 	var (
 		finishReason string
-		usage        *providergateway.UsageStats
+		usage        *chatports.ChatUsage
 		model        string
 	)
 
 	for chunk := range chunks {
-		if chunk.Error != nil {
-			if isContextCanceled(chunk.Error) {
+		if chunk.Error != "" {
+			chunkErr := errors.New(chunk.Error)
+			if isContextCanceledMessage(chunk.Error) {
 				metadata := o.buildMetadata(providerName, chooseModel(model, fallbackModel), "cancelled", usage, start, nil)
 				_ = o.service.FinalizeMessage(conversationID, messageID, metadata)
 				o.emitStreamComplete(conversationID, messageID, metadata)
 			} else {
-				o.emitStreamError(conversationID, messageID, chunk.Error)
-				metadata := o.buildMetadata(providerName, chooseModel(model, fallbackModel), "error", usage, start, chunk.Error)
+				o.emitStreamError(conversationID, messageID, chunkErr)
+				metadata := o.buildMetadata(providerName, chooseModel(model, fallbackModel), "error", usage, start, chunkErr)
 				_ = o.service.FinalizeMessage(conversationID, messageID, metadata)
 			}
 			return
@@ -395,7 +358,7 @@ func (o *Orchestrator) buildMetadata(
 	providerName,
 	model,
 	finishReason string,
-	usage *providergateway.UsageStats,
+	usage *chatports.ChatUsage,
 	start time.Time,
 	err error,
 ) *MessageMetadata {
@@ -410,11 +373,11 @@ func (o *Orchestrator) buildMetadata(
 		meta.FinishReason = "stop"
 	}
 	if usage != nil {
-		meta.TokensIn = usage.PromptTokens
-		meta.TokensOut = usage.CompletionTokens
+		meta.TokensIn = usage.InputTokens
+		meta.TokensOut = usage.OutputTokens
 		meta.TokensTotal = usage.TotalTokens
 		if meta.TokensTotal == 0 {
-			meta.TokensTotal = usage.PromptTokens + usage.CompletionTokens
+			meta.TokensTotal = usage.InputTokens + usage.OutputTokens
 		}
 	}
 	if err != nil {
@@ -468,8 +431,13 @@ func chooseModel(primary, fallback string) string {
 	return fallback
 }
 
-// isContextCanceled checks for context cancellation errors.
-func isContextCanceled(err error) bool {
+// isContextCanceledMessage checks whether an error string represents cancellation.
+func isContextCanceledMessage(message string) bool {
 
-	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+	lower := strings.ToLower(strings.TrimSpace(message))
+	if lower == "" {
+		return false
+	}
+	return strings.Contains(lower, context.Canceled.Error()) ||
+		strings.Contains(lower, context.DeadlineExceeded.Error())
 }

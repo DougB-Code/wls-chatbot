@@ -1,5 +1,5 @@
 // providers.go builds settings provider dependencies from configuration.
-// internal/features/settings/module/providers.go
+// internal/features/ai/providers/providers.go
 package providers
 
 import (
@@ -8,16 +8,16 @@ import (
 
 	config "github.com/MadeByDoug/wls-chatbot/internal/core/config"
 	corelogger "github.com/MadeByDoug/wls-chatbot/internal/core/logger"
-	modelaccess "github.com/MadeByDoug/wls-chatbot/internal/features/ai/model"
 	anthropicadapter "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/adapters/anthropic"
 	cloudflareadapter "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/adapters/cloudflare"
+	modelaccess "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/adapters/configmodels"
 	geminiadapter "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/adapters/gemini"
 	grokadapter "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/adapters/grok"
 	openaiadapter "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/adapters/openai"
 	openrouteradapter "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/adapters/openrouter"
 	providerregistry "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/adapters/registry"
-	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/interfaces/core"
-	providerusecase "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/provider"
+	providerusecase "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/app/provider"
+	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/core"
 )
 
 // LoadProvidersFromStore loads providers from configuration storage.

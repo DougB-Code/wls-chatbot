@@ -11,7 +11,7 @@ import (
 	"time"
 
 	// config "github.com/MadeByDoug/wls-chatbot/internal/core/config"
-	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/interfaces/core"
+	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/core"
 )
 
 const appConfigSchema = `

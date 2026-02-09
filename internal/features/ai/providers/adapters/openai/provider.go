@@ -1,5 +1,5 @@
 // provider.go implements the OpenAI provider adapter.
-// internal/features/providers/adapters/openai/provider.go
+// internal/features/ai/providers/adapters/openai/provider.go
 package openai
 
 import (
@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	providerhttp "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/adapters/httpcompat"
-	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/interfaces/core"
-	providergateway "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/interfaces/gateway"
+	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/core"
+	providergateway "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/gateway"
 	openaisdk "github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 )

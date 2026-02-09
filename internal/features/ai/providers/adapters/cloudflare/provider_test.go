@@ -1,5 +1,5 @@
 // provider_test.go verifies Cloudflare AI Gateway adapter behavior.
-// internal/features/providers/adapters/cloudflare/provider_test.go
+// internal/features/ai/providers/adapters/cloudflare/provider_test.go
 package cloudflare
 
 import (
@@ -10,7 +10,7 @@ import (
 	"os"
 	"testing"
 
-	providergateway "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/interfaces/gateway"
+	providergateway "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/gateway"
 )
 
 // skipIfNoCloudflareSDKMocking skips tests that cannot mock Cloudflare SDK's internal HTTP client.

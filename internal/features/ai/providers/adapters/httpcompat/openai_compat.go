@@ -1,5 +1,5 @@
 // openai_compat.go handles OpenAI-compatible HTTP flows shared by provider adapters.
-// internal/features/providers/adapters/httpcompat/openai_compat.go
+// internal/features/ai/providers/adapters/httpcompat/openai_compat.go
 package providerhttp
 
 import (
@@ -13,8 +13,8 @@ import (
 	"sort"
 	"strings"
 
-	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/interfaces/core"
-	providergateway "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/interfaces/gateway"
+	providercore "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/core"
+	providergateway "github.com/MadeByDoug/wls-chatbot/internal/features/ai/providers/ports/gateway"
 )
 
 // ListOpenAICompatModels fetches models from an OpenAI-compatible API.
